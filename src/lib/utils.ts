@@ -11,7 +11,7 @@ export const extractLinks = (content: string): string[] => {
 };
 
 export const generateGraphData = (notes: Note[]) => {
-  const nodes = notes.map((note) => ({ id: note.id, name: note.title, val: 2 }));
+  const nodes = notes.map((note) => ({ id: note.id, name: note.title, val: 2, color: note.color }));
   const links: { source: string; target: string }[] = [];
 
   notes.forEach((note) => {

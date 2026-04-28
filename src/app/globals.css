@@ -1,9 +1,25 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Enable dark mode via class (controlled by JS/settings) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+}
+
+/* Fallback for system theme when no class is set */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
 }
 
 @theme inline {
@@ -31,28 +47,45 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(150, 150, 150, 0.3);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
 /* Custom Markdown Prose Fixes */
-.prose-invert code {
-  background-color: rgba(255, 255, 255, 0.1);
+.prose code {
+  background-color: rgba(0, 0, 0, 0.05);
   padding: 0.2em 0.4em;
   border-radius: 0.25rem;
   font-weight: 400;
 }
 
-.prose-invert code::before,
-.prose-invert code::after {
+.prose code::before,
+.prose code::after {
   content: "";
 }
 
-.prose-invert pre {
+.prose pre {
+  background-color: #f3f4f6 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark .prose code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .prose pre {
   background-color: #121212 !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
