@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { Note, Folder } from "@/lib/types";
 import {
   Plus,
@@ -370,12 +371,10 @@ export default function Sidebar({
     <div className="w-72 h-full bg-gray-50 dark:bg-[#121212] border-r border-black/5 dark:border-white/5 flex flex-col">
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-foreground font-semibold">
-          <div className="w-6 h-6 rounded bg-violet-600 flex items-center justify-center">
-            <Network size={14} className="text-white" />
-          </div>
+        <Link href="/" className="flex items-center gap-2 text-foreground font-semibold hover:opacity-80 transition-opacity">
+          <img src="/logo.svg" alt="NetBrain" className="w-7 h-7 drop-shadow-md" />
           NetBrain
-        </div>
+        </Link>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setShowGraph(!showGraph)}
