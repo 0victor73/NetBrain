@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  getRedirectResult
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Network, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
@@ -19,15 +20,30 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  // Verifica se o usuário acabou de voltar de um redirecionamento de login
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          router.push("/");
+        }
+      } catch (err: any) {
+        console.error(err);
+        setError("Erro ao processar login: " + err.message);
+      }
+    };
+    checkRedirect();
+  }, [router]);
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      router.push("/");
+      // Usar redirect em vez de popup para evitar bloqueios do navegador
+      await signInWithRedirect(auth, provider);
     } catch (err: any) {
       setError("Erro ao entrar com Google: " + err.message);
-    } finally {
       setLoading(false);
     }
   };
