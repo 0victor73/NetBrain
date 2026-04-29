@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { updateProfile } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
-import { saveUserProfile } from "@/lib/db";
+import { saveUserProfile, UserProfile } from "@/lib/db";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Loader2, Save, User } from "lucide-react";
 import Link from "next/link";
@@ -17,7 +15,7 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [photoURL, setPhotoURL] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [photoBase64State, setPhotoBase64State] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -29,7 +27,8 @@ export default function ProfilePage() {
       router.push("/login");
     } else if (user) {
       setDisplayName(user.displayName || "");
-      setPhotoURL(user.photoURL || "");
+      // Prioriza a foto em Base64 salva no Firestore, depois a do Google
+      setPhotoURL(userProfile?.photoBase64 || user.photoURL || "");
       if (userProfile?.username) {
         setUsername(userProfile.username);
       }
@@ -39,8 +38,41 @@ export default function ProfilePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
-      setPhotoURL(URL.createObjectURL(file)); // Preview local
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 256;
+          const MAX_HEIGHT = 256;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          setPhotoBase64State(dataUrl);
+          setPhotoURL(dataUrl); // Preview local
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -52,23 +84,22 @@ export default function ProfilePage() {
     setMessage("");
 
     try {
-      let finalPhotoURL = user.photoURL;
-
-      // Se o usuário selecionou uma nova imagem, fazemos o upload pro Storage
-      if (imageFile) {
-        const storageRef = ref(storage, `profiles/${user.uid}/${imageFile.name}`);
-        await uploadBytes(storageRef, imageFile);
-        finalPhotoURL = await getDownloadURL(storageRef);
+      // Prepara os dados para salvar no Firestore (Username e Foto)
+      const profileUpdates: Partial<UserProfile> = { username };
+      if (photoBase64State) {
+        profileUpdates.photoBase64 = photoBase64State;
       }
+      
+      // Salva no Firestore
+      await saveUserProfile(user.uid, profileUpdates);
 
-      // Atualiza o perfil no Firebase Auth
-      await updateProfile(user, {
-        displayName: displayName,
-        photoURL: finalPhotoURL,
-      });
-
-      // Salva o username customizado no Firestore
-      await saveUserProfile(user.uid, { username });
+      // Atualiza o perfil no Firebase Auth (Display Name e Foto se tiver nova)
+      const authUpdates: any = { displayName: displayName };
+      if (photoBase64State) {
+        authUpdates.photoURL = photoBase64State;
+      }
+      
+      await updateProfile(user, authUpdates);
 
       // Atualiza o contexto local
       await refreshProfile();

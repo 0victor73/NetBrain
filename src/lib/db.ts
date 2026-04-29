@@ -150,6 +150,7 @@ export const batchDeleteFolderAndContents = async (
 export interface UserProfile {
   username: string;
   updatedAt: number;
+  photoBase64?: string;
 }
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {

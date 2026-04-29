@@ -128,8 +128,8 @@ export default function Dashboard() {
           {/* Perfil do Usuário */}
           <Link href="/profile" className="p-6 flex items-center gap-4 mb-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group">
             <div className="w-12 h-12 rounded-full overflow-hidden bg-violet-500 flex items-center justify-center flex-shrink-0 border-2 border-white/10 shadow-lg group-hover:scale-105 transition-transform">
-              {user.photoURL ? (
-                <img src={user.photoURL} alt={user.displayName || "User"} className="w-full h-full object-cover" />
+              {(userProfile?.photoBase64 || user.photoURL) ? (
+                <img src={userProfile?.photoBase64 || user.photoURL || ""} alt={user.displayName || "User"} className="w-full h-full object-cover" />
               ) : (
                 <User size={24} className="text-white" />
               )}
