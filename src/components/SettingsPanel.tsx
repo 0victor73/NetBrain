@@ -97,7 +97,7 @@ export default function SettingsPanel({ settings, updateSettings, onClose }: Set
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-96 bg-white dark:bg-[#161616] border-l border-black/10 dark:border-white/10 shadow-2xl z-50 flex flex-col overflow-hidden">
+      <div className="fixed top-0 right-0 h-full w-full max-w-sm sm:w-96 bg-white dark:bg-[#161616] border-l border-black/10 dark:border-white/10 shadow-2xl z-50 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/5 dark:border-white/5">
           <h2 className="text-lg font-semibold text-foreground">Configurações</h2>

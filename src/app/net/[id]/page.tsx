@@ -8,6 +8,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/useSettings";
 import { Note, Folder } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
+import clsx from "clsx";
 
 import { useParams } from "next/navigation";
 import { 
@@ -29,6 +30,7 @@ export default function Home() {
   const [showGraph, setShowGraph] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings();
   const { user, loading } = useAuth();
