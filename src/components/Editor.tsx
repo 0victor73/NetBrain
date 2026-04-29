@@ -4,13 +4,14 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Note, Settings } from "@/lib/types";
-import { Maximize2, Edit3, Eye } from "lucide-react";
+import { Maximize2, Edit3, Eye, Menu } from "lucide-react";
 import clsx from "clsx";
 
 interface EditorProps {
   note: Note | null;
   updateNote: (id: string, updates: Partial<Note>) => void;
   settings: Settings;
+  onToggleMenu?: () => void;
 }
 
 const fontFamilyMap = {
@@ -25,16 +26,28 @@ const fontSizeMap = {
   lg: "text-lg",
 };
 
-export default function Editor({ note, updateNote, settings }: EditorProps) {
+export default function Editor({ note, updateNote, settings, onToggleMenu }: EditorProps) {
   const [mode, setMode] = useState<"edit" | "preview" | "split">(settings.defaultEditorMode);
 
   if (!note) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-background text-foreground/40">
-        <div className="w-16 h-16 mb-4 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center border border-black/10 dark:border-white/10">
-          <Edit3 size={24} />
+      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
+        <div className="absolute top-4 left-4 md:hidden">
+          {onToggleMenu && (
+            <button
+              onClick={onToggleMenu}
+              className="p-2 rounded-lg text-foreground/70 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <Menu size={24} />
+            </button>
+          )}
         </div>
-        <p className="text-lg">Selecione uma nota ou crie uma nova</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-foreground/40">
+          <div className="w-16 h-16 mb-4 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center border border-black/10 dark:border-white/10">
+            <Edit3 size={24} />
+          </div>
+          <p className="text-lg">Selecione uma nota ou crie uma nova</p>
+        </div>
       </div>
     );
   }
@@ -42,14 +55,24 @@ export default function Editor({ note, updateNote, settings }: EditorProps) {
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 bg-background">
-        <input
-          type="text"
-          value={note.title}
-          onChange={(e) => updateNote(note.id, { title: e.target.value })}
-          className="bg-transparent text-2xl font-bold text-foreground outline-none w-1/2 placeholder:text-foreground/20"
-          placeholder="Nota sem título"
-        />
+      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-black/5 dark:border-white/5 bg-background gap-2">
+        <div className="flex items-center gap-2 flex-1">
+          {onToggleMenu && (
+            <button
+              onClick={onToggleMenu}
+              className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-black/5 dark:hover:bg-white/10 md:hidden flex-shrink-0"
+            >
+              <Menu size={24} />
+            </button>
+          )}
+          <input
+            type="text"
+            value={note.title}
+            onChange={(e) => updateNote(note.id, { title: e.target.value })}
+            className="bg-transparent text-xl md:text-2xl font-bold text-foreground outline-none w-full placeholder:text-foreground/20"
+            placeholder="Nota sem título"
+          />
+        </div>
 
         <div className="flex items-center gap-2 bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-black/10 dark:border-white/10">
           <button

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { generateGraphData } from "@/lib/utils";
 import { Note, Settings } from "@/lib/types";
+import { Menu } from "lucide-react";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
@@ -11,9 +12,10 @@ interface GraphProps {
   notes: Note[];
   onNodeClick: (node: any) => void;
   settings: Settings;
+  onToggleMenu?: () => void;
 }
 
-export default function Graph({ notes, onNodeClick, settings }: GraphProps) {
+export default function Graph({ notes, onNodeClick, settings, onToggleMenu }: GraphProps) {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [systemDark, setSystemDark] = useState(false);
@@ -57,6 +59,17 @@ export default function Graph({ notes, onNodeClick, settings }: GraphProps) {
       className="w-full h-full flex-1 overflow-hidden relative border-l border-black/5 dark:border-white/5"
       style={{ background: bgColor }}
     >
+      <div className="absolute top-4 left-4 z-10 md:hidden">
+        {onToggleMenu && (
+          <button
+            onClick={onToggleMenu}
+            className="p-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm rounded-lg border border-black/10 dark:border-white/10 text-foreground/70 hover:text-foreground shadow-sm"
+          >
+            <Menu size={24} />
+          </button>
+        )}
+      </div>
+
       {typeof window !== "undefined" && (
         <ForceGraph2D
           width={dimensions.width}

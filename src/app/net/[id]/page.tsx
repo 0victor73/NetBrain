@@ -170,6 +170,7 @@ export default function Home() {
   const handleNodeClick = (node: any) => {
     setActiveNoteId(node.id);
     setShowGraph(false);
+    setIsMobileMenuOpen(false);
   };
 
   if (loading || !isLoaded || !settingsLoaded) {
@@ -186,30 +187,55 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
-      <Sidebar
-        notes={notes}
-        folders={folders}
-        activeNoteId={activeNoteId}
-        onSelectNote={(id) => { setActiveNoteId(id); setShowGraph(false); }}
-        onCreateNote={handleCreateNote}
-        onDeleteNote={handleDeleteNote}
-        onUpdateNote={handleUpdateNote}
-        onMoveNote={handleMoveNote}
-        onCreateFolder={handleCreateFolder}
-        onDeleteFolder={handleDeleteFolder}
-        onRenameFolder={handleRenameFolder}
-        onUpdateFolder={handleUpdateFolder}
-        onToggleFolder={handleToggleFolder}
-        showGraph={showGraph}
-        setShowGraph={setShowGraph}
-        onOpenSettings={() => setShowSettings(true)}
-      />
+      
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
 
-      <main className="flex-1 flex flex-col relative h-full">
+      {/* Sidebar Wrapper for responsiveness */}
+      <div className={clsx(
+        "fixed inset-y-0 left-0 z-50 w-72 h-full transition-transform duration-300 md:relative md:translate-x-0 bg-background border-r border-border",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <Sidebar
+          notes={notes}
+          folders={folders}
+          activeNoteId={activeNoteId}
+          onSelectNote={(id) => { setActiveNoteId(id); setShowGraph(false); setIsMobileMenuOpen(false); }}
+          onCreateNote={handleCreateNote}
+          onDeleteNote={handleDeleteNote}
+          onUpdateNote={handleUpdateNote}
+          onMoveNote={handleMoveNote}
+          onCreateFolder={handleCreateFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onRenameFolder={handleRenameFolder}
+          onUpdateFolder={handleUpdateFolder}
+          onToggleFolder={handleToggleFolder}
+          showGraph={showGraph}
+          setShowGraph={(val) => { setShowGraph(val); setIsMobileMenuOpen(false); }}
+          onOpenSettings={() => { setShowSettings(true); setIsMobileMenuOpen(false); }}
+        />
+      </div>
+
+      <main className="flex-1 flex flex-col relative h-full w-full overflow-hidden">
         {showGraph ? (
-          <Graph notes={notes} onNodeClick={handleNodeClick} settings={settings} />
+          <Graph 
+            notes={notes} 
+            onNodeClick={handleNodeClick} 
+            settings={settings} 
+            onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          />
         ) : (
-          <Editor note={activeNote} updateNote={handleUpdateNote} settings={settings} />
+          <Editor 
+            note={activeNote} 
+            updateNote={handleUpdateNote} 
+            settings={settings} 
+            onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          />
         )}
       </main>
 

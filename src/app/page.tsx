@@ -8,7 +8,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/useSettings";
 
 import { useAuth } from "@/lib/auth-context";
-import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X } from "lucide-react";
 import { Net, getUserNets, createNet, updateNetDB, deleteNetDB } from "@/lib/db";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [nets, setNets] = useState<Net[]>([]);
   const [loadingNets, setLoadingNets] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Dropdown e edição
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -108,10 +109,22 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden" onClick={() => setOpenDropdownId(null)}>
+      
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar do Dashboard */}
-      <div className="w-72 h-full bg-black/5 dark:bg-[#121212] border-r border-black/5 dark:border-white/5 flex flex-col justify-between">
+      <div className={clsx(
+        "fixed inset-y-0 left-0 z-50 w-72 h-full bg-gray-50 dark:bg-[#121212] border-r border-black/5 dark:border-white/5 flex flex-col justify-between transition-transform duration-300 md:relative md:translate-x-0",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
         
-        <div className="flex flex-col">
+        <div className="flex flex-col overflow-y-auto">
           {/* Perfil do Usuário */}
           <Link href="/profile" className="p-6 flex items-center gap-4 mb-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group">
             <div className="w-12 h-12 rounded-full overflow-hidden bg-violet-500 flex items-center justify-center flex-shrink-0 border-2 border-white/10 shadow-lg group-hover:scale-105 transition-transform">
@@ -189,18 +202,27 @@ export default function Dashboard() {
       </div>
 
       {/* Área Principal */}
-      <main className="flex-1 overflow-y-auto p-12 bg-white dark:bg-background relative">
-        <div className="flex items-center justify-between mb-12">
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="NetBrain Logo" className="w-10 h-10 drop-shadow-md" />
-            <h1 className="text-4xl font-bold text-foreground tracking-tight">NetBrain</h1>
+      <main className="flex-1 overflow-y-auto p-6 md:p-12 bg-white dark:bg-background relative">
+        <div className="flex items-center justify-between mb-8 md:mb-12">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMobileMenuOpen(true);
+              }}
+              className="p-2 -ml-2 rounded-lg text-foreground/70 hover:bg-black/5 dark:hover:bg-white/10 md:hidden"
+            >
+              <Menu size={24} />
+            </button>
+            <img src="/logo.svg" alt="NetBrain Logo" className="w-8 h-8 md:w-10 md:h-10 drop-shadow-md" />
+            <h1 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight">NetBrain</h1>
           </div>
           <button
             onClick={handleCreateNewNet}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20"
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20 text-sm md:text-base"
           >
             <Plus size={18} />
-            Nova Net
+            <span className="hidden sm:inline">Nova Net</span>
           </button>
         </div>
         
