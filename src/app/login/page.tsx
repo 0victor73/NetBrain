@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  signInWithRedirect,
+  signInWithPopup,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  getRedirectResult
+  createUserWithEmailAndPassword
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Network, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
@@ -20,30 +19,20 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const router = useRouter();
 
-  // Verifica se o usuário acabou de voltar de um redirecionamento de login
-  useEffect(() => {
-    const checkRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          router.push("/");
-        }
-      } catch (err: any) {
-        console.error(err);
-        setError("Erro ao processar login: " + err.message);
-      }
-    };
-    checkRedirect();
-  }, [router]);
-
   const handleGoogleLogin = async () => {
-    setLoading(true);
+    // IMPORTANTE: Instanciar e chamar o popup ANTES de qualquer mudança de estado (setLoading)
+    // Isso garante que o navegador reconheça como uma ação direta do usuário e não bloqueie o popup
     const provider = new GoogleAuthProvider();
     try {
-      // Usar redirect em vez de popup para evitar bloqueios do navegador
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      setLoading(true);
+      if (result.user) {
+        router.push("/");
+      }
     } catch (err: any) {
-      setError("Erro ao entrar com Google: " + err.message);
+      if (err.code !== "auth/popup-closed-by-user") {
+        setError("Erro ao entrar com Google: " + err.message);
+      }
       setLoading(false);
     }
   };
