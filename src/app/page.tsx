@@ -228,7 +228,7 @@ export default function Dashboard() {
         
         {/* Grid de Cards (Nets) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {nets.map((net) => (
+          {activeTab === "minhas" && nets.map((net) => (
             <div
               key={net.id}
               onClick={() => handleCardClick(net.id)}
@@ -318,6 +318,71 @@ export default function Dashboard() {
                   </p>
                 </>
               )}
+            </div>
+          ))}
+
+          {activeTab === "compartilhadas" && [
+            {
+              id: "shared-1",
+              title: "Loren Ipsun",
+              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
+              noteCount: 73,
+              owner: {
+                name: "Victor Gabriel",
+                username: "@victor",
+                photoURL: "https://i.pravatar.cc/150?u=victor"
+              }
+            },
+            {
+              id: "shared-2",
+              title: "Loren Ipsun",
+              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
+              noteCount: 12822,
+              owner: {
+                name: "Linus Torvalds",
+                username: "@linus",
+                photoURL: "https://i.pravatar.cc/150?u=linus"
+              }
+            },
+            {
+              id: "shared-3",
+              title: "Loren Ipsun",
+              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
+              noteCount: 304,
+              owner: {
+                name: "Mark Zukenberg",
+                username: "@markinho",
+                photoURL: "https://i.pravatar.cc/150?u=markinho"
+              }
+            }
+          ].map((net) => (
+            <div
+              key={net.id}
+              className="relative flex flex-col bg-black/5 dark:bg-white/5 border border-transparent dark:border-white/5 p-6 rounded-3xl transition-all hover:scale-[1.02] hover:shadow-xl hover:bg-black/10 dark:hover:bg-white/10 group cursor-pointer aspect-[4/3]"
+            >
+              {/* Card Header (Owner Details) */}
+              <div className="flex items-center gap-3 mb-6">
+                <img src={net.owner.photoURL} alt={net.owner.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-foreground leading-tight">{net.owner.name}</span>
+                  <span className="text-xs text-foreground/50 leading-tight">{net.owner.username}</span>
+                </div>
+              </div>
+
+              {/* Card Body (Title and Description) */}
+              <div className="flex-1">
+                <h3 className="text-2xl font-semibold text-foreground mb-3 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                  {net.title}
+                </h3>
+                <p className="text-sm text-foreground/60 leading-relaxed line-clamp-3">
+                  {net.description}
+                </p>
+              </div>
+
+              {/* Card Footer (Note Count) */}
+              <div className="mt-4 text-xs text-foreground/50 font-medium">
+                {net.noteCount.toLocaleString('pt-BR')} {net.noteCount === 1 ? 'Nota' : 'Notas'}
+              </div>
             </div>
           ))}
         </div>
