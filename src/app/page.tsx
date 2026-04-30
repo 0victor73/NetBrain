@@ -363,7 +363,7 @@ export default function Dashboard() {
             >
               <Menu size={24} />
             </button>
-            <img src="/logo.svg" alt="NetBrain Logo" className="w-8 h-8 md:w-10 md:h-10 drop-shadow-md" />
+            <img src="/logo.svg" alt="NetBrain Logo" className="w-10 h-10 md:w-14 md:h-14 drop-shadow-md" />
             <h1 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight">NetBrain</h1>
           </div>
           <div className="flex items-center gap-2 relative">

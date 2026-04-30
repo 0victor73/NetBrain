@@ -8,6 +8,9 @@ export type Note = {
   updatedAt: number;
   netId?: string;      // Which net this note belongs to
   createdBy?: string;  // UID of the user who created this note
+  order?: number;
+  x?: number;
+  y?: number;
 };
 
 export type Folder = {
@@ -17,6 +20,7 @@ export type Folder = {
   isOpen: boolean;
   color: string | null;    // null = cor padrão
   createdAt: number;
+  order?: number;
 };
 
 export type Theme = "system" | "light" | "dark";

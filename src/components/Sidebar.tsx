@@ -17,6 +17,11 @@ import {
   ChevronDown,
   Pencil,
   Palette,
+  ArrowUpDown,
+  Clock,
+  Calendar,
+  Type,
+  MousePointer2
 } from "lucide-react";
 import clsx from "clsx";
 import ColorPicker from "@/components/ColorPicker";
@@ -35,6 +40,8 @@ interface SidebarProps {
   onRenameFolder: (id: string, name: string) => void;
   onUpdateFolder: (id: string, updates: Partial<Folder>) => void;
   onToggleFolder: (id: string) => void;
+  onReorderNotes: (draggedId: string, targetId: string) => void;
+  onReorderFolders: (draggedId: string, targetId: string) => void;
   showGraph: boolean;
   setShowGraph: (show: boolean) => void;
   onOpenSettings: () => void;
@@ -96,6 +103,8 @@ function FolderRow({
   onRenameFolder,
   onUpdateFolder,
   onToggleFolder,
+  onReorderNotes,
+  onReorderFolders,
   setRenamingId,
   setDragOverId,
 }: {
@@ -117,6 +126,8 @@ function FolderRow({
   onRenameFolder: (id: string, name: string) => void;
   onUpdateFolder: (id: string, updates: Partial<Folder>) => void;
   onToggleFolder: (id: string) => void;
+  onReorderNotes: (draggedId: string, targetId: string) => void;
+  onReorderFolders: (draggedId: string, targetId: string) => void;
   setRenamingId: (id: string | null) => void;
   setDragOverId: (id: string | null) => void;
 }) {
@@ -133,6 +144,7 @@ function FolderRow({
     notes, folders, activeNoteId, showGraph, renamingId, dragOverId,
     onSelectNote, onDeleteNote, onUpdateNote, onMoveNote,
     onCreateNote, onCreateFolder, onDeleteFolder, onRenameFolder, onUpdateFolder, onToggleFolder,
+    onReorderNotes, onReorderFolders,
     setRenamingId, setDragOverId,
   };
 
@@ -152,9 +164,13 @@ function FolderRow({
         onDrop={(e) => {
           e.preventDefault();
           const noteId = e.dataTransfer.getData("noteId");
+          const folderId = e.dataTransfer.getData("folderId");
           if (noteId) onMoveNote(noteId, folder.id);
+          else if (folderId && folderId !== folder.id) onReorderFolders(folderId, folder.id);
           setDragOverId(null);
         }}
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData("folderId", folder.id)}
       >
         <span className="text-foreground/30 flex-shrink-0">
           {folder.isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -233,6 +249,8 @@ function FolderRow({
               onSelectNote={onSelectNote}
               onDeleteNote={onDeleteNote}
               onUpdateNote={onUpdateNote}
+              onReorderNotes={onReorderNotes}
+              setDragOverId={setDragOverId}
             />
           ))}
         </div>
@@ -250,6 +268,8 @@ function NoteRow({
   onSelectNote,
   onDeleteNote,
   onUpdateNote,
+  onReorderNotes,
+  setDragOverId,
 }: {
   note: Note;
   depth: number;
@@ -258,6 +278,8 @@ function NoteRow({
   onSelectNote: (id: string) => void;
   onDeleteNote: (id: string) => void;
   onUpdateNote: (id: string, updates: Partial<Note>) => void;
+  onReorderNotes: (draggedId: string, targetId: string) => void;
+  setDragOverId: (id: string | null) => void;
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const paletteRef = useRef<HTMLButtonElement>(null);
@@ -267,6 +289,14 @@ function NoteRow({
     <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("noteId", note.id)}
+      onDragOver={(e) => { e.preventDefault(); setDragOverId(note.id); }}
+      onDragLeave={() => setDragOverId(null)}
+      onDrop={(e) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData("noteId");
+        if (draggedId && draggedId !== note.id) onReorderNotes(draggedId, note.id);
+        setDragOverId(null);
+      }}
       onClick={() => onSelectNote(note.id)}
       style={{ paddingLeft: `${6 + depth * 16}px` }}
       className={clsx(
@@ -344,6 +374,8 @@ export default function Sidebar({
   onRenameFolder,
   onUpdateFolder,
   onToggleFolder,
+  onReorderNotes,
+  onReorderFolders,
   showGraph,
   setShowGraph,
   onOpenSettings,
@@ -357,23 +389,46 @@ export default function Sidebar({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"title" | "date" | "updated" | "custom">("title");
 
-  const rootFolders = folders.filter((f) => f.parentId === null);
-  const rootNotes = notes.filter((n) => n.folderId === null);
+  const sortNotes = (notesList: Note[]) => {
+    return [...notesList].sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "date") return b.createdAt - a.createdAt;
+      if (sortBy === "updated") return b.updatedAt - a.updatedAt;
+      if (sortBy === "custom") return (a.order ?? 0) - (b.order ?? 0);
+      return 0;
+    });
+  };
+
+  const sortFolders = (foldersList: Folder[]) => {
+    return [...foldersList].sort((a, b) => {
+      if (sortBy === "title") return a.name.localeCompare(b.name);
+      if (sortBy === "custom") return (a.order ?? 0) - (b.order ?? 0);
+      return 0;
+    });
+  };
+
+  const sortedNotes = sortNotes(notes);
+  const sortedFolders = sortFolders(folders);
+
+  const rootFolders = sortedFolders.filter((f) => f.parentId === null);
+  const rootNotes = sortedNotes.filter((n) => n.folderId === null);
 
   const isSearching = search.trim().length > 0;
   const filteredNotes = isSearching
-    ? notes.filter(
+    ? sortNotes(notes.filter(
         (n) =>
           n.title.toLowerCase().includes(search.toLowerCase()) ||
           n.content.toLowerCase().includes(search.toLowerCase())
-      )
+      ))
     : [];
 
   const sharedProps = {
-    notes, folders, activeNoteId, showGraph, renamingId, dragOverId,
+    notes: sortedNotes, folders: sortedFolders, activeNoteId, showGraph, renamingId, dragOverId,
     onSelectNote, onDeleteNote, onUpdateNote, onMoveNote,
     onCreateNote, onCreateFolder, onDeleteFolder, onRenameFolder, onUpdateFolder, onToggleFolder,
+    onReorderNotes, onReorderFolders,
     setRenamingId, setDragOverId,
   };
 
@@ -426,9 +481,9 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Search */}
-      <div className="px-4 pb-3">
-        <div className="relative">
+      {/* Search and Sort */}
+      <div className="px-4 pb-3 flex items-center gap-2">
+        <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/30" />
           <input
             type="text"
@@ -437,6 +492,54 @@ export default function Sidebar({
             placeholder="Buscar notas..."
             className="w-full bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg pl-9 pr-4 py-1.5 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-violet-500/50 transition-colors shadow-sm dark:shadow-none"
           />
+        </div>
+        
+        <div className="relative group/sort">
+          <button 
+            className="p-1.5 bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg text-foreground/40 hover:text-foreground hover:bg-black/5 transition-all shadow-sm"
+            title="Ordenar notas"
+          >
+            <ArrowUpDown size={14} />
+          </button>
+          
+          <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-[#1a1a1a] border border-black/10 dark:border-white/10 rounded-xl shadow-xl py-1 z-50 opacity-0 invisible group-hover/sort:opacity-100 group-hover/sort:visible transition-all">
+            <button 
+              onClick={() => setSortBy("title")}
+              className={clsx(
+                "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors",
+                sortBy === "title" ? "text-violet-600 font-bold" : "text-foreground/60"
+              )}
+            >
+              <Type size={12} /> A-Z
+            </button>
+            <button 
+              onClick={() => setSortBy("updated")}
+              className={clsx(
+                "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors",
+                sortBy === "updated" ? "text-violet-600 font-bold" : "text-foreground/60"
+              )}
+            >
+              <Clock size={12} /> Atualizada
+            </button>
+            <button 
+              onClick={() => setSortBy("date")}
+              className={clsx(
+                "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors",
+                sortBy === "date" ? "text-violet-600 font-bold" : "text-foreground/60"
+              )}
+            >
+              <Calendar size={12} /> Criada
+            </button>
+            <button 
+              onClick={() => { setSortBy("custom"); }}
+              className={clsx(
+                "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors",
+                sortBy === "custom" ? "text-violet-600 font-bold" : "text-foreground/60"
+              )}
+            >
+              <MousePointer2 size={12} /> Personalizada
+            </button>
+          </div>
         </div>
       </div>
 
@@ -450,7 +553,8 @@ export default function Sidebar({
               filteredNotes.map((note) => (
                 <NoteRow key={note.id} note={note} depth={0}
                   activeNoteId={activeNoteId} showGraph={showGraph}
-                  onSelectNote={onSelectNote} onDeleteNote={onDeleteNote} onUpdateNote={onUpdateNote} />
+                  onSelectNote={onSelectNote} onDeleteNote={onDeleteNote} onUpdateNote={onUpdateNote}
+                  onReorderNotes={onReorderNotes} setDragOverId={setDragOverId} />
               ))
             )}
           </div>
@@ -480,7 +584,8 @@ export default function Sidebar({
               {rootNotes.map((note) => (
                 <NoteRow key={note.id} note={note} depth={0}
                   activeNoteId={activeNoteId} showGraph={showGraph}
-                  onSelectNote={onSelectNote} onDeleteNote={onDeleteNote} onUpdateNote={onUpdateNote} />
+                  onSelectNote={onSelectNote} onDeleteNote={onDeleteNote} onUpdateNote={onUpdateNote}
+                  onReorderNotes={onReorderNotes} setDragOverId={setDragOverId} />
               ))}
             </div>
 

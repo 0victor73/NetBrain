@@ -44,8 +44,8 @@ export interface Net {
 
 export interface NetExportData {
   net: Partial<Net>;
-  folders: Folder[];
-  notes: Note[];
+  folders: Partial<Folder>[];
+  notes: Partial<Note>[];
 }
 
 export const createNet = async (userId: string, title: string, description: string, owner: { name: string, username: string, photoURL?: string }): Promise<Net> => {
@@ -285,7 +285,7 @@ export const exportNet = async (netId: string): Promise<NetExportData | null> =>
       name: f.name,
       parentId: f.parentId,
       color: f.color
-    })) as Folder[],
+    })) as Partial<Folder>[],
     notes: notes.map(n => ({
       id: n.id,
       title: n.title,
@@ -294,7 +294,7 @@ export const exportNet = async (netId: string): Promise<NetExportData | null> =>
       color: n.color,
       x: n.x,
       y: n.y
-    })) as Note[]
+    })) as Partial<Note>[]
   };
 };
 
@@ -323,20 +323,25 @@ export const importNet = async (userId: string, data: NetExportData, owner: { na
   const folderIdMap: Record<string, string> = {};
   
   data.folders.forEach(folder => {
-    const newFolderId = crypto.randomUUID();
-    folderIdMap[folder.id] = newFolderId;
+    if (folder.id) {
+      const newFolderId = crypto.randomUUID();
+      folderIdMap[folder.id] = newFolderId;
+    }
   });
   
   data.folders.forEach(folder => {
-    const newFolderId = folderIdMap[folder.id];
-    const newParentId = folder.parentId ? (folderIdMap[folder.parentId] || null) : null;
-    
-    batch.set(doc(db, "folders", newFolderId), {
-      ...folder,
-      id: newFolderId,
-      netId: newNetId,
-      parentId: newParentId
-    });
+    if (folder.id) {
+      const newFolderId = folderIdMap[folder.id];
+      const newParentId = folder.parentId ? (folderIdMap[folder.parentId] || null) : null;
+      
+      batch.set(doc(db, "folders", newFolderId), {
+        ...folder,
+        id: newFolderId,
+        netId: newNetId,
+        parentId: newParentId,
+        createdAt: folder.createdAt || Date.now()
+      });
+    }
   });
   
   data.notes.forEach(note => {
@@ -349,7 +354,7 @@ export const importNet = async (userId: string, data: NetExportData, owner: { na
       netId: newNetId,
       folderId: newFolderId,
       createdBy: userId,
-      createdAt: Date.now(),
+      createdAt: note.createdAt || Date.now(),
       updatedAt: Date.now()
     });
   });

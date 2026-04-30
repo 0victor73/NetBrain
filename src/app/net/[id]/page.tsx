@@ -220,6 +220,64 @@ export default function Home() {
     await updateFolderDB(id, { isOpen: newIsOpen });
   };
 
+  const handleReorderNotes = async (draggedId: string, targetId: string) => {
+    if (!canWrite) return;
+    const draggedNote = notes.find(n => n.id === draggedId);
+    const targetNote = notes.find(n => n.id === targetId);
+    if (!draggedNote || !targetNote) return;
+
+    const folderId = targetNote.folderId;
+    const sameFolderNotes = [...notes]
+      .filter(n => n.folderId === folderId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    const targetIndex = sameFolderNotes.findIndex(n => n.id === targetId);
+    const filtered = sameFolderNotes.filter(n => n.id !== draggedId);
+    filtered.splice(targetIndex, 0, draggedNote);
+    
+    const updatedNotes = notes.map(n => {
+      const match = filtered.find(f => f.id === n.id);
+      if (match) {
+        const newOrder = filtered.indexOf(match) * 100;
+        if (n.order !== newOrder || n.folderId !== folderId) {
+          updateNoteDB(n.id, { order: newOrder, folderId });
+        }
+        return { ...n, order: newOrder, folderId };
+      }
+      return n;
+    });
+    setNotes(updatedNotes);
+  };
+
+  const handleReorderFolders = async (draggedId: string, targetId: string) => {
+    if (!canWrite) return;
+    const draggedFolder = folders.find(f => f.id === draggedId);
+    const targetFolder = folders.find(f => f.id === targetId);
+    if (!draggedFolder || !targetFolder) return;
+
+    const parentId = targetFolder.parentId;
+    const sameLevelFolders = [...folders]
+      .filter(f => f.parentId === parentId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    const targetIndex = sameLevelFolders.findIndex(f => f.id === targetId);
+    const filtered = sameLevelFolders.filter(f => f.id !== draggedId);
+    filtered.splice(targetIndex, 0, draggedFolder);
+    
+    const updatedFolders = folders.map(f => {
+      const match = filtered.find(m => m.id === f.id);
+      if (match) {
+        const newOrder = filtered.indexOf(match) * 100;
+        if (f.order !== newOrder || f.parentId !== parentId) {
+          updateFolderDB(f.id, { order: newOrder, parentId });
+        }
+        return { ...f, order: newOrder, parentId };
+      }
+      return f;
+    });
+    setFolders(updatedFolders);
+  };
+
   const handleNodeClick = (node: any) => {
     setActiveNoteId(node.id);
     setShowGraph(false);
@@ -268,6 +326,8 @@ export default function Home() {
           onRenameFolder={handleRenameFolder}
           onUpdateFolder={handleUpdateFolder}
           onToggleFolder={handleToggleFolder}
+          onReorderNotes={handleReorderNotes}
+          onReorderFolders={handleReorderFolders}
           showGraph={showGraph}
           setShowGraph={(val) => { setShowGraph(val); setIsMobileMenuOpen(false); }}
           onOpenSettings={() => { setShowSettings(true); setIsMobileMenuOpen(false); }}
