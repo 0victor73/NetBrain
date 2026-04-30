@@ -14,6 +14,7 @@ interface EditorProps {
   onSelectNote: (id: string) => void;
   settings: Settings;
   onToggleMenu?: () => void;
+  readOnly?: boolean;
 }
 
 const fontFamilyMap = {
@@ -28,8 +29,8 @@ const fontSizeMap = {
   lg: "text-lg",
 };
 
-export default function Editor({ note, notes, updateNote, onSelectNote, settings, onToggleMenu }: EditorProps) {
-  const [mode, setMode] = useState<"edit" | "preview" | "split">(settings.defaultEditorMode);
+export default function Editor({ note, notes, updateNote, onSelectNote, settings, onToggleMenu, readOnly = false }: EditorProps) {
+  const [mode, setMode] = useState<"edit" | "preview" | "split">(readOnly ? "preview" : settings.defaultEditorMode);
 
   const handleWikiLinkClick = (title: string) => {
     const targetNote = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
@@ -82,37 +83,45 @@ export default function Editor({ note, notes, updateNote, onSelectNote, settings
           <input
             type="text"
             value={note.title}
-            onChange={(e) => updateNote(note.id, { title: e.target.value })}
-            className="bg-transparent text-xl md:text-2xl font-bold text-foreground outline-none w-full placeholder:text-foreground/20"
+            onChange={(e) => !readOnly && updateNote(note.id, { title: e.target.value })}
+            readOnly={readOnly}
+            className={clsx(
+              "bg-transparent text-xl md:text-2xl font-bold text-foreground outline-none w-full placeholder:text-foreground/20",
+              readOnly && "cursor-default select-text"
+            )}
             placeholder="Nota sem título"
           />
         </div>
 
         <div className="flex items-center gap-2 bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-black/10 dark:border-white/10">
-          <button
-            onClick={() => setMode("edit")}
-            className={clsx(
-              "p-2 rounded-md transition-colors",
-              mode === "edit"
-                ? "bg-black/10 dark:bg-white/10 text-foreground"
-                : "text-foreground/50 hover:text-foreground"
-            )}
-            title="Editar"
-          >
-            <Edit3 size={16} />
-          </button>
-          <button
-            onClick={() => setMode("split")}
-            className={clsx(
-              "p-2 rounded-md transition-colors",
-              mode === "split"
-                ? "bg-black/10 dark:bg-white/10 text-foreground"
-                : "text-foreground/50 hover:text-foreground"
-            )}
-            title="Visão Dividida"
-          >
-            <Maximize2 size={16} />
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => setMode("edit")}
+                className={clsx(
+                  "p-2 rounded-md transition-colors",
+                  mode === "edit"
+                    ? "bg-black/10 dark:bg-white/10 text-foreground"
+                    : "text-foreground/50 hover:text-foreground"
+                )}
+                title="Editar"
+              >
+                <Edit3 size={16} />
+              </button>
+              <button
+                onClick={() => setMode("split")}
+                className={clsx(
+                  "p-2 rounded-md transition-colors",
+                  mode === "split"
+                    ? "bg-black/10 dark:bg-white/10 text-foreground"
+                    : "text-foreground/50 hover:text-foreground"
+                )}
+                title="Visão Dividida"
+              >
+                <Maximize2 size={16} />
+              </button>
+            </>
+          )}
           <button
             onClick={() => setMode("preview")}
             className={clsx(
@@ -139,12 +148,14 @@ export default function Editor({ note, notes, updateNote, onSelectNote, settings
           >
             <textarea
               value={note.content}
-              onChange={(e) => updateNote(note.id, { content: e.target.value })}
+              onChange={(e) => !readOnly && updateNote(note.id, { content: e.target.value })}
+              readOnly={readOnly}
               spellCheck={settings.spellCheck}
               className={clsx(
                 "w-full h-full bg-transparent text-foreground/90 p-6 resize-none outline-none leading-relaxed",
                 fontFamilyMap[settings.editorFont],
-                fontSizeMap[settings.fontSize]
+                fontSizeMap[settings.fontSize],
+                readOnly && "cursor-default"
               )}
               placeholder="Comece a escrever... Use [[Título da Nota]] para conectar notas."
             />

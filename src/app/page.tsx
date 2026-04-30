@@ -8,8 +8,8 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/useSettings";
 
 import { useAuth } from "@/lib/auth-context";
-import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X, Share2 as ShareIcon } from "lucide-react";
-import { Net, getUserNets, createNet, updateNetDB, deleteNetDB, getSharedNets, getPublicNets, getUserByUsername } from "@/lib/db";
+import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X, Share2 as ShareIcon, Shield, Edit3, Eye } from "lucide-react";
+import { Net, AccessRole, getUserNets, createNet, updateNetDB, deleteNetDB, getSharedNets, getPublicNets, getUserByUsername } from "@/lib/db";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
@@ -24,6 +24,7 @@ export default function Dashboard() {
   // Compartilhamento
   const [sharingNet, setSharingNet] = useState<Net | null>(null);
   const [shareUsernameInput, setShareUsernameInput] = useState("");
+  const [shareRoleInput, setShareRoleInput] = useState<AccessRole>("editor");
   const [isSavingShare, setIsSavingShare] = useState(false);
 
   // Dropdown e edição
@@ -121,7 +122,10 @@ export default function Dashboard() {
 
         if (!newSharedWith.includes(userToAdd.uid)) {
           newSharedWith = [...newSharedWith, userToAdd.uid];
-          newSharedUsers = [...newSharedUsers, { uid: userToAdd.uid, username: userToAdd.profile.username }];
+          newSharedUsers = [...newSharedUsers, { uid: userToAdd.uid, username: userToAdd.profile.username, role: shareRoleInput }];
+        } else {
+          // Update role if already shared
+          newSharedUsers = newSharedUsers.map(u => u.uid === userToAdd.uid ? { ...u, role: shareRoleInput } : u);
         }
       }
       
@@ -137,6 +141,7 @@ export default function Dashboard() {
       setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
       setSharingNet({ ...sharingNet, ...updates });
       setShareUsernameInput("");
+      setShareRoleInput("editor");
     } catch (error) {
       console.error("Erro ao compartilhar net", error);
     } finally {
@@ -480,34 +485,54 @@ export default function Dashboard() {
                     placeholder="@nomedeusuario" 
                     value={shareUsernameInput}
                     onChange={(e) => setShareUsernameInput(e.target.value)}
-                    className="flex-1 bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500"
+                    className="flex-1 bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500 min-w-0"
                   />
-                  <button type="submit" disabled={isSavingShare} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50 font-medium text-sm">
-                    {isSavingShare ? "Adicionando..." : "Adicionar"}
-                  </button>
+                  <select
+                    value={shareRoleInput}
+                    onChange={(e) => setShareRoleInput(e.target.value as AccessRole)}
+                    className="bg-white dark:bg-[#2a2a2a] border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 cursor-pointer"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Visualizador</option>
+                  </select>
                 </div>
+                <button type="submit" disabled={isSavingShare || !shareUsernameInput.trim()} className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl transition-colors disabled:opacity-50 font-medium text-sm">
+                  {isSavingShare ? "Adicionando..." : "Adicionar"}
+                </button>
               </form>
 
               {sharingNet.sharedUsers && sharingNet.sharedUsers.length > 0 && (
                 <div className="mt-6">
                   <h4 className="text-sm font-semibold mb-3">Compartilhado com:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {sharingNet.sharedUsers.map(u => (
-                      <span key={u.uid} className="bg-violet-500/10 text-violet-600 dark:text-violet-400 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
-                        @{u.username}
-                        <button onClick={async () => {
-                          const updatedWith = sharingNet.sharedWith!.filter(uid => uid !== u.uid);
-                          const updatedUsers = sharingNet.sharedUsers!.filter(user => user.uid !== u.uid);
-                          const updates = { sharedWith: updatedWith, sharedUsers: updatedUsers };
-                          
-                          await updateNetDB(sharingNet.id, updates);
-                          setSharingNet({ ...sharingNet, ...updates });
-                          setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
-                        }} className="hover:text-red-500">
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
+                  <div className="flex flex-col gap-2">
+                    {sharingNet.sharedUsers.map(u => {
+                      const roleConfig = {
+                        admin:  { label: "Administrador", icon: <Shield size={11} />, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+                        editor: { label: "Editor",        icon: <Edit3 size={11} />,  cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+                        viewer: { label: "Visualizador",  icon: <Eye size={11} />,    cls: "bg-green-500/10 text-green-600 dark:text-green-400" },
+                      }[u.role ?? "viewer"];
+                      return (
+                        <div key={u.uid} className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-xl px-3 py-2">
+                          <span className="text-sm font-medium">@{u.username}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${roleConfig.cls}`}>
+                              {roleConfig.icon} {roleConfig.label}
+                            </span>
+                            <button onClick={async () => {
+                              const updatedWith = sharingNet.sharedWith!.filter(uid => uid !== u.uid);
+                              const updatedUsers = sharingNet.sharedUsers!.filter(user => user.uid !== u.uid);
+                              const updates = { sharedWith: updatedWith, sharedUsers: updatedUsers };
+                              await updateNetDB(sharingNet.id, updates);
+                              setSharingNet({ ...sharingNet, ...updates });
+                              setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
+                            }} className="text-foreground/30 hover:text-red-500 transition-colors">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

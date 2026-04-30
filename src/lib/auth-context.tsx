@@ -40,6 +40,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (currentUser) {
         await fetchProfile(currentUser.uid);
+        // Salva a foto do Google e nome no Firestore para que outros usuários possam ver nas nets compartilhadas
+        import("./db").then(({ saveUserProfile }) => {
+          saveUserProfile(currentUser.uid, {
+            displayName: currentUser.displayName || "",
+            photoURL: currentUser.photoURL || ""
+          });
+        });
       } else {
         setUserProfile(null);
       }

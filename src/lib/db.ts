@@ -10,11 +10,20 @@ import {
   updateDoc,
   serverTimestamp,
   writeBatch,
-  getCountFromServer
+  getCountFromServer,
+  getDoc
 } from "firebase/firestore";
 import { Note, Folder } from "./types";
 
 // --- NETS (Workspaces) ---
+
+export type AccessRole = "admin" | "editor" | "viewer";
+
+export interface SharedUser {
+  uid: string;
+  username: string;
+  role: AccessRole;
+}
 
 export interface Net {
   id: string;
@@ -23,8 +32,8 @@ export interface Net {
   description: string;
   createdAt: number;
   noteCount?: number;
-  sharedWith?: string[]; // Array of UIDs
-  sharedUsers?: { uid: string; username: string }[]; // For displaying in UI without extra fetches
+  sharedWith?: string[]; // Array of UIDs for Firestore array-contains queries
+  sharedUsers?: SharedUser[]; // Full list with role info
   isPublic?: boolean;
   owner?: {
     name: string;
@@ -43,7 +52,7 @@ export const createNet = async (userId: string, title: string, description: stri
     createdAt: Date.now(),
     owner,
     sharedWith: [],
-    sharedUsers: [],
+    sharedUsers: [] as SharedUser[],
     isPublic: false,
   };
   await setDoc(newNetRef, net);
@@ -80,6 +89,19 @@ export const getSharedNets = async (uid: string): Promise<Net[]> => {
     const notesQuery = query(collection(db, "notes"), where("netId", "==", net.id));
     const countSnapshot = await getCountFromServer(notesQuery);
     net.noteCount = countSnapshot.data().count;
+
+    if (net.userId) {
+      const userRef = doc(db, "users", net.userId);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userProf = userSnap.data() as UserProfile;
+        net.owner = {
+          name: userProf.displayName || userProf.username || "Usuário",
+          username: userProf.username || "usuario",
+          photoURL: userProf.photoBase64 || userProf.photoURL || ""
+        };
+      }
+    }
   }
   return nets;
 };
@@ -93,6 +115,19 @@ export const getPublicNets = async (): Promise<Net[]> => {
     const notesQuery = query(collection(db, "notes"), where("netId", "==", net.id));
     const countSnapshot = await getCountFromServer(notesQuery);
     net.noteCount = countSnapshot.data().count;
+
+    if (net.userId) {
+      const userRef = doc(db, "users", net.userId);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userProf = userSnap.data() as UserProfile;
+        net.owner = {
+          name: userProf.displayName || userProf.username || "Usuário",
+          username: userProf.username || "usuario",
+          photoURL: userProf.photoBase64 || userProf.photoURL || ""
+        };
+      }
+    }
   }
   return nets;
 };
@@ -190,6 +225,8 @@ export interface UserProfile {
   username: string;
   updatedAt: number;
   photoBase64?: string;
+  photoURL?: string;
+  displayName?: string;
 }
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {

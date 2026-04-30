@@ -6,6 +6,8 @@ export type Note = {
   color: string | null;    // null = cor padrão
   createdAt: number;
   updatedAt: number;
+  netId?: string;      // Which net this note belongs to
+  createdBy?: string;  // UID of the user who created this note
 };
 
 export type Folder = {

@@ -9,9 +9,12 @@ import { useSettings } from "@/lib/useSettings";
 import { Note, Folder } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import clsx from "clsx";
+import { Eye } from "lucide-react";
 
 import { useParams } from "next/navigation";
 import { 
+  Net,
+  AccessRole,
   getNetFolders, 
   getNetNotes, 
   saveNote, 
@@ -21,6 +24,8 @@ import {
   deleteNoteDB, 
   batchDeleteFolderAndContents 
 } from "@/lib/db";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Home() {
   const { id: netId } = useParams() as { id: string };
@@ -31,6 +36,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState<AccessRole | "owner" | null>(null);
 
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings();
   const { user, loading } = useAuth();
@@ -41,6 +47,26 @@ export default function Home() {
 
     const loadData = async () => {
       try {
+        // Determine user role for this net
+        const netRef = doc(db, "nets", netId);
+        const netSnap = await getDoc(netRef);
+        if (netSnap.exists()) {
+          const netData = netSnap.data() as Net;
+          if (netData.userId === user.uid) {
+            setUserRole("owner");
+          } else {
+            const sharedEntry = (netData.sharedUsers || []).find(u => u.uid === user.uid);
+            if (sharedEntry) {
+              setUserRole(sharedEntry.role);
+            } else if (netData.isPublic) {
+              setUserRole("viewer");
+            } else {
+              // No access
+              setUserRole(null);
+            }
+          }
+        }
+
         const fetchedFolders = await getNetFolders(netId);
         const fetchedNotes = await getNetNotes(netId);
         
@@ -49,9 +75,6 @@ export default function Home() {
         if (fetchedNotes.length > 0) {
           setNotes(fetchedNotes);
           setActiveNoteId(fetchedNotes[0].id);
-        } else {
-          // If no notes exist in this Net, we can optionally create a welcome note.
-          // For now, just set empty array. User can create one.
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -62,13 +85,20 @@ export default function Home() {
     
     loadData();
   }, [user, loading, netId]);
+  // ── Permission helpers ─────────────────────────────────────────────────────
+  const canWrite = userRole === "owner" || userRole === "admin" || userRole === "editor";
+  const canAdmin = userRole === "owner" || userRole === "admin";
+
   // ── Note handlers ──────────────────────────────────────────────────────────
   const handleCreateNote = async (folderId: string | null = null) => {
+    if (!canWrite) return;
     const newNote: Note = {
       id: crypto.randomUUID(),
       title: "",
       content: "",
       folderId,
+      netId: netId,
+      createdBy: user?.uid,  // Track who created the note
       color: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -90,6 +120,9 @@ export default function Home() {
   };
 
   const handleUpdateNote = async (id: string, updates: Partial<Note>) => {
+    const note = notes.find(n => n.id === id);
+    // Editors can only edit notes they created; admins/owners can edit any
+    if (!canAdmin && note?.createdBy !== user?.uid) return;
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n))
     );
@@ -97,6 +130,9 @@ export default function Home() {
   };
 
   const handleDeleteNote = async (id: string) => {
+    const note = notes.find(n => n.id === id);
+    // Editors can only delete notes they created; admins/owners can delete any
+    if (!canAdmin && note?.createdBy !== user?.uid) return;
     setNotes((prev) => prev.filter((n) => n.id !== id));
     if (activeNoteId === id) setActiveNoteId(null);
     await deleteNoteDB(id);
@@ -220,6 +256,9 @@ export default function Home() {
           showGraph={showGraph}
           setShowGraph={(val) => { setShowGraph(val); setIsMobileMenuOpen(false); }}
           onOpenSettings={() => { setShowSettings(true); setIsMobileMenuOpen(false); }}
+          canWrite={canWrite}
+          canAdmin={canAdmin}
+          currentUserId={user.uid}
         />
       </div>
 
@@ -232,14 +271,23 @@ export default function Home() {
             onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
         ) : (
-          <Editor 
-            note={activeNote} 
-            notes={notes}
-            updateNote={handleUpdateNote} 
-            onSelectNote={(id) => { setActiveNoteId(id); setShowGraph(false); }}
-            settings={settings} 
-            onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          />
+          <>
+            {userRole === "viewer" && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-medium border-b border-amber-500/20">
+                <Eye size={14} />
+                Você tem acesso somente para visualização nesta Net.
+              </div>
+            )}
+            <Editor 
+              note={activeNote} 
+              notes={notes}
+              updateNote={handleUpdateNote} 
+              onSelectNote={(id) => { setActiveNoteId(id); setShowGraph(false); }}
+              settings={settings} 
+              onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              readOnly={userRole === "viewer"}
+            />
+          </>
         )}
       </main>
 
