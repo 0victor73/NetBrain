@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [editingNetId, setEditingNetId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [publicSearchQuery, setPublicSearchQuery] = useState("");
 
   const router = useRouter();
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings();
@@ -90,6 +91,11 @@ export default function Dashboard() {
     setNets((prev) => [newNet, ...prev]);
     setLoadingNets(false);
   };
+
+  const filteredPublicNets = publicNets.filter(net => 
+    net.owner?.username.toLowerCase().includes(publicSearchQuery.toLowerCase()) ||
+    net.title.toLowerCase().includes(publicSearchQuery.toLowerCase())
+  );
 
   if (loading || !settingsLoaded || loadingNets) {
     return (
@@ -302,14 +308,42 @@ export default function Dashboard() {
             <img src="/logo.svg" alt="NetBrain Logo" className="w-8 h-8 md:w-10 md:h-10 drop-shadow-md" />
             <h1 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight">NetBrain</h1>
           </div>
-          <button
-            onClick={handleCreateNewNet}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20 text-sm md:text-base"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Nova Net</span>
-          </button>
+          {activeTab === "minhas" && (
+            <button
+              onClick={handleCreateNewNet}
+              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20 text-sm md:text-base"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Nova Net</span>
+            </button>
+          )}
         </div>
+
+        <div className="mb-10">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-foreground tracking-tight">
+            {activeTab === "minhas" ? "Minhas Nets" : activeTab === "compartilhadas" ? "Compartilhadas" : "Encontrar Nets"}
+          </h2>
+          <p className="text-foreground/50 text-sm md:text-base mt-2">
+            {activeTab === "minhas" 
+              ? "Gerencie seus mapas mentais e conexões." 
+              : activeTab === "compartilhadas" 
+                ? "Nets que outras pessoas compartilharam com você." 
+                : "Explore mapas mentais públicos da comunidade."}
+          </p>
+        </div>
+
+        {activeTab === "encontrar" && (
+          <div className="mb-8 relative max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30" size={20} />
+            <input 
+              type="text"
+              placeholder="Pesquisar por @usuário ou título..."
+              value={publicSearchQuery}
+              onChange={(e) => setPublicSearchQuery(e.target.value)}
+              className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:border-violet-500 transition-all text-foreground"
+            />
+          </div>
+        )}
         
         {/* Grid de Cards (Nets) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -412,7 +446,25 @@ export default function Dashboard() {
             </div>
           ))}
 
-          {(activeTab === "compartilhadas" ? sharedNets : activeTab === "encontrar" ? publicNets : []).map((net) => (
+          {activeTab === "encontrar" && filteredPublicNets.length === 0 && !loadingNets && (
+            <div className="col-span-full py-20 text-center bg-black/5 dark:bg-white/5 rounded-3xl border border-dashed border-black/10 dark:border-white/10">
+              <Search className="mx-auto text-foreground/20 mb-4" size={48} />
+              <p className="text-foreground/40 text-lg">Nenhuma Net encontrada para sua pesquisa.</p>
+              <button 
+                onClick={() => setPublicSearchQuery("")}
+                className="mt-4 text-violet-500 hover:underline text-sm font-medium"
+              >
+                Limpar pesquisa
+              </button>
+            </div>
+          )}
+
+          {(activeTab === "compartilhadas" 
+            ? sharedNets 
+            : activeTab === "encontrar" 
+              ? filteredPublicNets
+              : []
+          ).map((net) => (
             <div
               key={net.id}
               onClick={() => handleCardClick(net.id)}

@@ -41,6 +41,8 @@ interface SidebarProps {
   canWrite?: boolean;
   canAdmin?: boolean;
   currentUserId?: string;
+  netTitle?: string;
+  netOwner?: { name: string; username: string; photoURL?: string } | null;
 }
 
 /** Inline rename input */
@@ -348,6 +350,8 @@ export default function Sidebar({
   canWrite = true,
   canAdmin = true,
   currentUserId,
+  netTitle,
+  netOwner,
 }: SidebarProps) {
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -414,6 +418,13 @@ export default function Sidebar({
           )}
         </div>
       </div>
+
+      {/* Net Title */}
+      {netTitle && (
+        <div className="px-4 pb-3">
+          <p className="text-sm font-bold text-foreground truncate" title={netTitle}>{netTitle}</p>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-4 pb-3">
@@ -484,7 +495,25 @@ export default function Sidebar({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-black/5 dark:border-white/5">
+      <div className="p-3 border-t border-black/5 dark:border-white/5 flex flex-col gap-1">
+        {/* Owner card for shared/public nets */}
+        {netOwner && (
+          <div className="flex items-center gap-2.5 px-3 py-2.5 mb-1 rounded-xl bg-violet-500/5 border border-violet-500/10">
+            {netOwner.photoURL ? (
+              <img src={netOwner.photoURL} alt={netOwner.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 ring-violet-500/20" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">
+                {netOwner.name?.[0]?.toUpperCase() ?? "?"}
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs text-foreground/40 leading-tight">Criada por</span>
+              <span className="text-xs font-bold text-foreground truncate leading-tight">{netOwner.name}</span>
+              <span className="text-xs text-foreground/50 truncate leading-tight">@{netOwner.username}</span>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={onOpenSettings}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/50 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm"

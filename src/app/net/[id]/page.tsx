@@ -37,6 +37,8 @@ export default function Home() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userRole, setUserRole] = useState<AccessRole | "owner" | null>(null);
+  const [netTitle, setNetTitle] = useState("");
+  const [netOwner, setNetOwner] = useState<{ name: string; username: string; photoURL?: string } | null>(null);
 
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings();
   const { user, loading } = useAuth();
@@ -52,6 +54,7 @@ export default function Home() {
         const netSnap = await getDoc(netRef);
         if (netSnap.exists()) {
           const netData = netSnap.data() as Net;
+          setNetTitle(netData.title);
           if (netData.userId === user.uid) {
             setUserRole("owner");
           } else {
@@ -61,8 +64,20 @@ export default function Home() {
             } else if (netData.isPublic) {
               setUserRole("viewer");
             } else {
-              // No access
               setUserRole(null);
+            }
+            // Fetch fresh owner profile so photo is always up to date
+            if (netData.userId) {
+              const ownerRef = doc(db, "users", netData.userId);
+              const ownerSnap = await getDoc(ownerRef);
+              if (ownerSnap.exists()) {
+                const ownerProfile = ownerSnap.data();
+                setNetOwner({
+                  name: ownerProfile.displayName || ownerProfile.username || "Usuário",
+                  username: ownerProfile.username || "usuario",
+                  photoURL: ownerProfile.photoBase64 || ownerProfile.photoURL || ""
+                });
+              }
             }
           }
         }
@@ -259,6 +274,8 @@ export default function Home() {
           canWrite={canWrite}
           canAdmin={canAdmin}
           currentUserId={user.uid}
+          netTitle={netTitle}
+          netOwner={userRole !== "owner" ? netOwner : null}
         />
       </div>
 

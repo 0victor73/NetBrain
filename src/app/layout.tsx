@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "NetBrain — Seu Mapa Mental na Nuvem",
-  description: "Sistema de notas estilo Obsidian com mapa mental interativo, baseado na web.",
+  description: "Conecte ideias, organize pensamentos e construa seu conhecimento de forma visual e inteligente.",
 };
 
 import { AuthProvider } from "@/lib/auth-context";
