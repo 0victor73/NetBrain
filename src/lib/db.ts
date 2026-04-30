@@ -23,9 +23,17 @@ export interface Net {
   description: string;
   createdAt: number;
   noteCount?: number;
+  sharedWith?: string[]; // Array of UIDs
+  sharedUsers?: { uid: string; username: string }[]; // For displaying in UI without extra fetches
+  isPublic?: boolean;
+  owner?: {
+    name: string;
+    username: string;
+    photoURL?: string;
+  };
 }
 
-export const createNet = async (userId: string, title: string, description: string): Promise<Net> => {
+export const createNet = async (userId: string, title: string, description: string, owner: { name: string, username: string, photoURL?: string }): Promise<Net> => {
   const newNetRef = doc(collection(db, "nets"));
   const net: Net = {
     id: newNetRef.id,
@@ -33,6 +41,10 @@ export const createNet = async (userId: string, title: string, description: stri
     title,
     description,
     createdAt: Date.now(),
+    owner,
+    sharedWith: [],
+    sharedUsers: [],
+    isPublic: false,
   };
   await setDoc(newNetRef, net);
   return { ...net, noteCount: 0 };
@@ -56,6 +68,33 @@ export const getUserNets = async (userId: string): Promise<Net[]> => {
 export const updateNetDB = async (netId: string, updates: Partial<Net>) => {
   const netRef = doc(db, "nets", netId);
   await updateDoc(netRef, updates);
+};
+
+export const getSharedNets = async (uid: string): Promise<Net[]> => {
+  if (!uid) return [];
+  const q = query(collection(db, "nets"), where("sharedWith", "array-contains", uid));
+  const snapshot = await getDocs(q);
+  const nets = snapshot.docs.map(doc => doc.data() as Net).sort((a, b) => b.createdAt - a.createdAt);
+  
+  for (const net of nets) {
+    const notesQuery = query(collection(db, "notes"), where("netId", "==", net.id));
+    const countSnapshot = await getCountFromServer(notesQuery);
+    net.noteCount = countSnapshot.data().count;
+  }
+  return nets;
+};
+
+export const getPublicNets = async (): Promise<Net[]> => {
+  const q = query(collection(db, "nets"), where("isPublic", "==", true));
+  const snapshot = await getDocs(q);
+  const nets = snapshot.docs.map(doc => doc.data() as Net).sort((a, b) => b.createdAt - a.createdAt);
+  
+  for (const net of nets) {
+    const notesQuery = query(collection(db, "notes"), where("netId", "==", net.id));
+    const countSnapshot = await getCountFromServer(notesQuery);
+    net.noteCount = countSnapshot.data().count;
+  }
+  return nets;
 };
 
 export const deleteNetDB = async (netId: string) => {
@@ -163,4 +202,21 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
 export const saveUserProfile = async (userId: string, data: Partial<UserProfile>) => {
   const userRef = doc(db, "users", userId);
   await setDoc(userRef, { ...data, updatedAt: Date.now() }, { merge: true });
+};
+
+export const checkUsernameExists = async (username: string, currentUserId: string): Promise<boolean> => {
+  if (!username) return false;
+  const q = query(collection(db, "users"), where("username", "==", username));
+  const snap = await getDocs(q);
+  // It exists if we found at least one doc that is NOT the current user
+  return snap.docs.some(doc => doc.id !== currentUserId);
+};
+
+export const getUserByUsername = async (username: string): Promise<{ uid: string; profile: UserProfile } | null> => {
+  if (!username) return null;
+  const q = query(collection(db, "users"), where("username", "==", username));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { uid: doc.id, profile: doc.data() as UserProfile };
 };

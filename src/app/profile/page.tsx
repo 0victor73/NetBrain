@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { updateProfile } from "firebase/auth";
-import { saveUserProfile, UserProfile } from "@/lib/db";
+import { saveUserProfile, UserProfile, checkUsernameExists } from "@/lib/db";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Loader2, Save, User } from "lucide-react";
 import Link from "next/link";
@@ -84,6 +84,14 @@ export default function ProfilePage() {
     setMessage("");
 
     try {
+      // Verifica se o username já existe
+      const exists = await checkUsernameExists(username, user.uid);
+      if (exists) {
+        setMessage("Esse nome de usuário já está em uso. Por favor, escolha outro.");
+        setIsSaving(false);
+        return;
+      }
+
       // Prepara os dados para salvar no Firestore (Username e Foto)
       const profileUpdates: Partial<UserProfile> = { username };
       if (photoBase64State) {

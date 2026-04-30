@@ -9,7 +9,9 @@ import clsx from "clsx";
 
 interface EditorProps {
   note: Note | null;
+  notes: Note[];
   updateNote: (id: string, updates: Partial<Note>) => void;
+  onSelectNote: (id: string) => void;
   settings: Settings;
   onToggleMenu?: () => void;
 }
@@ -26,8 +28,15 @@ const fontSizeMap = {
   lg: "text-lg",
 };
 
-export default function Editor({ note, updateNote, settings, onToggleMenu }: EditorProps) {
+export default function Editor({ note, notes, updateNote, onSelectNote, settings, onToggleMenu }: EditorProps) {
   const [mode, setMode] = useState<"edit" | "preview" | "split">(settings.defaultEditorMode);
+
+  const handleWikiLinkClick = (title: string) => {
+    const targetNote = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
+    if (targetNote) {
+      onSelectNote(targetNote.id);
+    }
+  };
 
   if (!note) {
     return (
@@ -51,6 +60,11 @@ export default function Editor({ note, updateNote, settings, onToggleMenu }: Edi
       </div>
     );
   }
+
+  // Pre-processamento para transformar [[Título]] em um formato que o ReactMarkdown possa renderizar como link customizado
+  const processedContent = note.content.replace(/\[\[(.*?)\]\]/g, (match, title) => {
+    return `[${title}](#wiki-${encodeURIComponent(title)})`;
+  });
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
@@ -144,7 +158,31 @@ export default function Editor({ note, updateNote, settings, onToggleMenu }: Edi
               mode === "split" ? "w-1/2" : "w-full"
             )}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ node, ...props }) => {
+                  if (props.href?.startsWith('#wiki-')) {
+                    const title = decodeURIComponent(props.href.replace('#wiki-', ''));
+                    return (
+                      <span 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleWikiLinkClick(title);
+                        }}
+                        className="text-violet-500 cursor-pointer hover:underline font-bold decoration-violet-500/30 underline-offset-4"
+                        title={`Navegar para: ${title}`}
+                      >
+                        {props.children}
+                      </span>
+                    );
+                  }
+                  return <a {...props} target="_blank" rel="noopener noreferrer" />;
+                }
+              }}
+            >
+              {processedContent}
+            </ReactMarkdown>
           </div>
         )}
       </div>

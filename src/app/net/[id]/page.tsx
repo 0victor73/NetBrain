@@ -234,7 +234,9 @@ export default function Home() {
         ) : (
           <Editor 
             note={activeNote} 
+            notes={notes}
             updateNote={handleUpdateNote} 
+            onSelectNote={(id) => { setActiveNoteId(id); setShowGraph(false); }}
             settings={settings} 
             onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />

@@ -8,17 +8,24 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/useSettings";
 
 import { useAuth } from "@/lib/auth-context";
-import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X } from "lucide-react";
-import { Net, getUserNets, createNet, updateNetDB, deleteNetDB } from "@/lib/db";
+import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X, Share2 as ShareIcon } from "lucide-react";
+import { Net, getUserNets, createNet, updateNetDB, deleteNetDB, getSharedNets, getPublicNets, getUserByUsername } from "@/lib/db";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("minhas");
   const [showSettings, setShowSettings] = useState(false);
   const [nets, setNets] = useState<Net[]>([]);
+  const [sharedNets, setSharedNets] = useState<Net[]>([]);
+  const [publicNets, setPublicNets] = useState<Net[]>([]);
   const [loadingNets, setLoadingNets] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Compartilhamento
+  const [sharingNet, setSharingNet] = useState<Net | null>(null);
+  const [shareUsernameInput, setShareUsernameInput] = useState("");
+  const [isSavingShare, setIsSavingShare] = useState(false);
+
   // Dropdown e edição
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [editingNetId, setEditingNetId] = useState<string | null>(null);
@@ -32,18 +39,31 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     const fetchNets = async () => {
+      setLoadingNets(true);
       try {
-        let userNets = await getUserNets(user.uid);
-        if (userNets.length === 0) {
-          // Cria a primeira net padrão para o usuário
-          const newNet = await createNet(
-            user.uid,
-            "Minha Primeira Net",
-            "Meu mapa mental principal com todas as anotações e conexões sobre tecnologia."
-          );
-          userNets = [newNet];
+        if (activeTab === "minhas") {
+          let userNets = await getUserNets(user.uid);
+          if (userNets.length === 0) {
+            const newNet = await createNet(
+              user.uid,
+              "Minha Primeira Net",
+              "Meu mapa mental principal com todas as anotações e conexões sobre tecnologia.",
+              { 
+                name: user.displayName || "Usuário", 
+                username: userProfile?.username || "usuario", 
+                photoURL: userProfile?.photoBase64 || user.photoURL || "" 
+              }
+            );
+            userNets = [newNet];
+          }
+          setNets(userNets);
+        } else if (activeTab === "compartilhadas") {
+          const sNets = await getSharedNets(user.uid);
+          setSharedNets(sNets);
+        } else if (activeTab === "encontrar") {
+          const pNets = await getPublicNets();
+          setPublicNets(pNets);
         }
-        setNets(userNets);
       } catch (error) {
         console.error("Erro ao buscar nets:", error);
       } finally {
@@ -51,12 +71,21 @@ export default function Dashboard() {
       }
     };
     fetchNets();
-  }, [user]);
+  }, [user, activeTab, userProfile?.username]);
 
   const handleCreateNewNet = async () => {
     if (!user) return;
     setLoadingNets(true);
-    const newNet = await createNet(user.uid, "Nova Net", "Descrição da nova net.");
+    const newNet = await createNet(
+      user.uid, 
+      "Nova Net", 
+      "Descrição da nova net.",
+      { 
+        name: user.displayName || "Usuário", 
+        username: userProfile?.username || "usuario", 
+        photoURL: userProfile?.photoBase64 || user.photoURL || "" 
+      }
+    );
     setNets((prev) => [newNet, ...prev]);
     setLoadingNets(false);
   };
@@ -71,6 +100,57 @@ export default function Dashboard() {
   }
 
   if (!user) return null; // O AuthProvider já redireciona para /login
+
+  const handleSaveShare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sharingNet) return;
+    setIsSavingShare(true);
+    try {
+      const usernameToAdd = shareUsernameInput.trim().replace('@', '');
+      
+      let newSharedWith = sharingNet.sharedWith || [];
+      let newSharedUsers = sharingNet.sharedUsers || [];
+
+      if (usernameToAdd) {
+        const userToAdd = await getUserByUsername(usernameToAdd);
+        if (!userToAdd) {
+          alert(`Usuário @${usernameToAdd} não encontrado.`);
+          setIsSavingShare(false);
+          return;
+        }
+
+        if (!newSharedWith.includes(userToAdd.uid)) {
+          newSharedWith = [...newSharedWith, userToAdd.uid];
+          newSharedUsers = [...newSharedUsers, { uid: userToAdd.uid, username: userToAdd.profile.username }];
+        }
+      }
+      
+      const updates = {
+        sharedWith: newSharedWith,
+        sharedUsers: newSharedUsers,
+        isPublic: sharingNet.isPublic
+      };
+      
+      await updateNetDB(sharingNet.id, updates);
+      
+      // Atualiza estado local
+      setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
+      setSharingNet({ ...sharingNet, ...updates });
+      setShareUsernameInput("");
+    } catch (error) {
+      console.error("Erro ao compartilhar net", error);
+    } finally {
+      setIsSavingShare(false);
+    }
+  };
+
+  const handleTogglePublic = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!sharingNet) return;
+    const isPublic = e.target.checked;
+    setSharingNet({ ...sharingNet, isPublic });
+    await updateNetDB(sharingNet.id, { isPublic });
+    setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, isPublic } : n));
+  };
 
   const handleDeleteNet = async (netId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -261,6 +341,12 @@ export default function Dashboard() {
                         <Pencil size={14} /> Editar Net
                       </button>
                       <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSharingNet(net); setOpenDropdownId(null); setShareUsernameInput(""); }}
+                        className="w-full text-left px-4 py-2 text-sm text-foreground/80 hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <ShareIcon size={14} /> Compartilhar
+                      </button>
+                      <button
                         onClick={(e) => handleDeleteNet(net.id, e)}
                         className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
                       >
@@ -321,53 +407,28 @@ export default function Dashboard() {
             </div>
           ))}
 
-          {activeTab === "compartilhadas" && [
-            {
-              id: "shared-1",
-              title: "Loren Ipsun",
-              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
-              noteCount: 73,
-              owner: {
-                name: "Victor Gabriel",
-                username: "@victor",
-                photoURL: "https://i.pravatar.cc/150?u=victor"
-              }
-            },
-            {
-              id: "shared-2",
-              title: "Loren Ipsun",
-              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
-              noteCount: 12822,
-              owner: {
-                name: "Linus Torvalds",
-                username: "@linus",
-                photoURL: "https://i.pravatar.cc/150?u=linus"
-              }
-            },
-            {
-              id: "shared-3",
-              title: "Loren Ipsun",
-              description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse.",
-              noteCount: 304,
-              owner: {
-                name: "Mark Zukenberg",
-                username: "@markinho",
-                photoURL: "https://i.pravatar.cc/150?u=markinho"
-              }
-            }
-          ].map((net) => (
+          {(activeTab === "compartilhadas" ? sharedNets : activeTab === "encontrar" ? publicNets : []).map((net) => (
             <div
               key={net.id}
+              onClick={() => handleCardClick(net.id)}
               className="relative flex flex-col bg-black/5 dark:bg-white/5 border border-transparent dark:border-white/5 p-6 rounded-3xl transition-all hover:scale-[1.02] hover:shadow-xl hover:bg-black/10 dark:hover:bg-white/10 group cursor-pointer aspect-[4/3]"
             >
               {/* Card Header (Owner Details) */}
-              <div className="flex items-center gap-3 mb-6">
-                <img src={net.owner.photoURL} alt={net.owner.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-foreground leading-tight">{net.owner.name}</span>
-                  <span className="text-xs text-foreground/50 leading-tight">{net.owner.username}</span>
+              {net.owner && (
+                <div className="flex items-center gap-3 mb-6">
+                  {net.owner.photoURL ? (
+                    <img src={net.owner.photoURL} alt={net.owner.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center">
+                      <User size={20} className="text-white" />
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-foreground leading-tight">{net.owner.name}</span>
+                    <span className="text-xs text-foreground/50 leading-tight">@{net.owner.username}</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Card Body (Title and Description) */}
               <div className="flex-1">
@@ -381,12 +442,80 @@ export default function Dashboard() {
 
               {/* Card Footer (Note Count) */}
               <div className="mt-4 text-xs text-foreground/50 font-medium">
-                {net.noteCount.toLocaleString('pt-BR')} {net.noteCount === 1 ? 'Nota' : 'Notas'}
+                {net.noteCount?.toLocaleString('pt-BR') ?? 0} {net.noteCount === 1 ? 'Nota' : 'Notas'}
               </div>
             </div>
           ))}
         </div>
       </main>
+
+      {/* Modal de Compartilhamento */}
+      {sharingNet && (
+        <>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
+              <button onClick={() => setSharingNet(null)} className="absolute top-4 right-4 p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-foreground/50 hover:text-foreground">
+                <X size={20} />
+              </button>
+              
+              <h2 className="text-xl font-bold mb-2">Compartilhar "{sharingNet.title}"</h2>
+              <p className="text-sm text-foreground/60 mb-6">Escolha quem pode visualizar e interagir com este mapa mental.</p>
+
+              <div className="mb-6 bg-black/5 dark:bg-white/5 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-sm">Acesso Público</h4>
+                  <p className="text-xs text-foreground/60">Qualquer pessoa pode encontrar esta Net na aba "Encontrar Nets".</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={sharingNet.isPublic || false} onChange={handleTogglePublic} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-black/20 peer-focus:outline-none rounded-full peer dark:bg-white/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                </label>
+              </div>
+
+              <form onSubmit={handleSaveShare} className="flex flex-col gap-3">
+                <label className="text-sm font-semibold">Compartilhar com usuário</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="@nomedeusuario" 
+                    value={shareUsernameInput}
+                    onChange={(e) => setShareUsernameInput(e.target.value)}
+                    className="flex-1 bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500"
+                  />
+                  <button type="submit" disabled={isSavingShare} className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50 font-medium text-sm">
+                    {isSavingShare ? "Adicionando..." : "Adicionar"}
+                  </button>
+                </div>
+              </form>
+
+              {sharingNet.sharedUsers && sharingNet.sharedUsers.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-semibold mb-3">Compartilhado com:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {sharingNet.sharedUsers.map(u => (
+                      <span key={u.uid} className="bg-violet-500/10 text-violet-600 dark:text-violet-400 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                        @{u.username}
+                        <button onClick={async () => {
+                          const updatedWith = sharingNet.sharedWith!.filter(uid => uid !== u.uid);
+                          const updatedUsers = sharingNet.sharedUsers!.filter(user => user.uid !== u.uid);
+                          const updates = { sharedWith: updatedWith, sharedUsers: updatedUsers };
+                          
+                          await updateNetDB(sharingNet.id, updates);
+                          setSharingNet({ ...sharingNet, ...updates });
+                          setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
+                        }} className="hover:text-red-500">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </>
+      )}
 
       {showSettings && settingsLoaded && (
         <SettingsPanel
