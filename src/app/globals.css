@@ -33,7 +33,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  overflow: hidden;
 }
 
 /* Scrollbar styles */
@@ -77,7 +76,8 @@ body {
 }
 
 .prose pre {
-  background-color: #f3f4f6 !important;
+  background-color: #1e293b !important; /* Slate 800 para alto contraste */
+  color: #f8fafc !important; /* Slate 50 para o texto */
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 

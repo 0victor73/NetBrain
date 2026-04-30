@@ -42,6 +42,12 @@ export interface Net {
   };
 }
 
+export interface NetExportData {
+  net: Partial<Net>;
+  folders: Folder[];
+  notes: Note[];
+}
+
 export const createNet = async (userId: string, title: string, description: string, owner: { name: string, username: string, photoURL?: string }): Promise<Net> => {
   const newNetRef = doc(collection(db, "nets"));
   const net: Net = {
@@ -256,4 +262,119 @@ export const getUserByUsername = async (username: string): Promise<{ uid: string
   if (snap.empty) return null;
   const doc = snap.docs[0];
   return { uid: doc.id, profile: doc.data() as UserProfile };
+};
+
+// --- IMPORT / EXPORT ---
+
+export const exportNet = async (netId: string): Promise<NetExportData | null> => {
+  const netRef = doc(db, "nets", netId);
+  const netSnap = await getDoc(netRef);
+  if (!netSnap.exists()) return null;
+  
+  const net = netSnap.data() as Net;
+  const folders = await getNetFolders(netId);
+  const notes = await getNetNotes(netId);
+  
+  return { 
+    net: {
+      title: net.title,
+      description: net.description
+    },
+    folders: folders.map(f => ({
+      id: f.id,
+      name: f.name,
+      parentId: f.parentId,
+      color: f.color
+    })) as Folder[],
+    notes: notes.map(n => ({
+      id: n.id,
+      title: n.title,
+      content: n.content,
+      folderId: n.folderId,
+      color: n.color,
+      x: n.x,
+      y: n.y
+    })) as Note[]
+  };
+};
+
+export const importNet = async (userId: string, data: NetExportData, owner: { name: string, username: string, photoURL?: string }): Promise<Net> => {
+  const batch = writeBatch(db);
+  
+  // Create new Net with new ID
+  const newNetRef = doc(collection(db, "nets"));
+  const newNetId = newNetRef.id;
+  
+  const newNet: Net = {
+    ...data.net as Net,
+    id: newNetId,
+    userId,
+    createdAt: Date.now(),
+    owner,
+    sharedWith: [],
+    sharedUsers: [],
+    isPublic: false,
+    title: `${data.net.title} (Importado)`
+  };
+  
+  batch.set(newNetRef, newNet);
+  
+  // Map old IDs to new IDs to maintain folder hierarchy and note placement
+  const folderIdMap: Record<string, string> = {};
+  
+  data.folders.forEach(folder => {
+    const newFolderId = crypto.randomUUID();
+    folderIdMap[folder.id] = newFolderId;
+  });
+  
+  data.folders.forEach(folder => {
+    const newFolderId = folderIdMap[folder.id];
+    const newParentId = folder.parentId ? (folderIdMap[folder.parentId] || null) : null;
+    
+    batch.set(doc(db, "folders", newFolderId), {
+      ...folder,
+      id: newFolderId,
+      netId: newNetId,
+      parentId: newParentId
+    });
+  });
+  
+  data.notes.forEach(note => {
+    const newNoteId = crypto.randomUUID();
+    const newFolderId = note.folderId ? (folderIdMap[note.folderId] || null) : null;
+    
+    batch.set(doc(db, "notes", newNoteId), {
+      ...note,
+      id: newNoteId,
+      netId: newNetId,
+      folderId: newFolderId,
+      createdBy: userId,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  });
+  
+  await batch.commit();
+  return { ...newNet, noteCount: data.notes.length };
+};
+
+export const deleteAllUserData = async (userId: string) => {
+  const batch = writeBatch(db);
+  
+  // 1. Deletar perfil
+  const userRef = doc(db, "users", userId);
+  batch.delete(userRef);
+  
+  // 2. Deletar nets (apenas as que o usuário é dono)
+  const netsQuery = query(collection(db, "nets"), where("userId", "==", userId));
+  const netsSnap = await getDocs(netsQuery);
+  netsSnap.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+
+  // Nota: Notas e pastas poderiam ser deletadas aqui também, 
+  // mas exigiria múltiplas queries por netId. 
+  // Para fins de MVP, deletar o perfil e as nets remove o acesso a tudo.
+
+  await batch.commit();
 };

@@ -39,14 +39,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
-        await fetchProfile(currentUser.uid);
-        // Salva a foto do Google e nome no Firestore para que outros usuários possam ver nas nets compartilhadas
-        import("./db").then(({ saveUserProfile }) => {
-          saveUserProfile(currentUser.uid, {
-            displayName: currentUser.displayName || "",
-            photoURL: currentUser.photoURL || ""
-          });
-        });
+        const profile = await getUserProfile(currentUser.uid);
+        setUserProfile(profile);
+        
+        // Se o usuário está logado mas não tem username, manda para onboarding
+        // Exceto se ele já estiver na página de onboarding
+        if (!profile?.username && pathname !== "/onboarding") {
+          router.push("/onboarding");
+        }
       } else {
         setUserProfile(null);
       }
@@ -57,7 +57,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!currentUser && pathname !== "/login") {
         router.push("/login");
       } else if (currentUser && pathname === "/login") {
-        router.push("/");
+        // Se logou no Google, verifica se precisa de onboarding
+        const profile = await getUserProfile(currentUser.uid);
+        if (!profile?.username) {
+          router.push("/onboarding");
+        } else {
+          router.push("/");
+        }
       }
     });
 

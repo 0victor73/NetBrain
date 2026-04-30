@@ -8,8 +8,8 @@ import SettingsPanel from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/useSettings";
 
 import { useAuth } from "@/lib/auth-context";
-import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X, Share2 as ShareIcon, Shield, Edit3, Eye } from "lucide-react";
-import { Net, AccessRole, getUserNets, createNet, updateNetDB, deleteNetDB, getSharedNets, getPublicNets, getUserByUsername } from "@/lib/db";
+import { LogOut, Loader2, MoreHorizontal, Pencil, Trash2, Menu, X, Share2 as ShareIcon, Shield, Edit3, Eye, Download, Upload } from "lucide-react";
+import { Net, AccessRole, getUserNets, createNet, updateNetDB, deleteNetDB, getSharedNets, getPublicNets, getUserByUsername, NetExportData, exportNet, importNet } from "@/lib/db";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
@@ -20,7 +20,7 @@ export default function Dashboard() {
   const [publicNets, setPublicNets] = useState<Net[]>([]);
   const [loadingNets, setLoadingNets] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   // Compartilhamento
   const [sharingNet, setSharingNet] = useState<Net | null>(null);
   const [shareUsernameInput, setShareUsernameInput] = useState("");
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [publicSearchQuery, setPublicSearchQuery] = useState("");
+  const [isNewNetDropdownOpen, setIsNewNetDropdownOpen] = useState(false);
 
   const router = useRouter();
   const { settings, updateSettings, isLoaded: settingsLoaded } = useSettings();
@@ -50,10 +51,10 @@ export default function Dashboard() {
               user.uid,
               "Minha Primeira Net",
               "Meu mapa mental principal com todas as anotações e conexões sobre tecnologia.",
-              { 
-                name: user.displayName || "Usuário", 
-                username: userProfile?.username || "usuario", 
-                photoURL: userProfile?.photoBase64 || user.photoURL || "" 
+              {
+                name: user.displayName || "Usuário",
+                username: userProfile?.username || "usuario",
+                photoURL: userProfile?.photoBase64 || user.photoURL || ""
               }
             );
             userNets = [newNet];
@@ -79,20 +80,20 @@ export default function Dashboard() {
     if (!user) return;
     setLoadingNets(true);
     const newNet = await createNet(
-      user.uid, 
-      "Nova Net", 
+      user.uid,
+      "Nova Net",
       "Descrição da nova net.",
-      { 
-        name: user.displayName || "Usuário", 
-        username: userProfile?.username || "usuario", 
-        photoURL: userProfile?.photoBase64 || user.photoURL || "" 
+      {
+        name: user.displayName || "Usuário",
+        username: userProfile?.username || "usuario",
+        photoURL: userProfile?.photoBase64 || user.photoURL || ""
       }
     );
     setNets((prev) => [newNet, ...prev]);
     setLoadingNets(false);
   };
 
-  const filteredPublicNets = publicNets.filter(net => 
+  const filteredPublicNets = publicNets.filter(net =>
     net.owner?.username.toLowerCase().includes(publicSearchQuery.toLowerCase()) ||
     net.title.toLowerCase().includes(publicSearchQuery.toLowerCase())
   );
@@ -114,7 +115,7 @@ export default function Dashboard() {
     setIsSavingShare(true);
     try {
       const usernameToAdd = shareUsernameInput.trim().replace('@', '');
-      
+
       let newSharedWith = sharingNet.sharedWith || [];
       let newSharedUsers = sharingNet.sharedUsers || [];
 
@@ -134,15 +135,15 @@ export default function Dashboard() {
           newSharedUsers = newSharedUsers.map(u => u.uid === userToAdd.uid ? { ...u, role: shareRoleInput } : u);
         }
       }
-      
+
       const updates = {
         sharedWith: newSharedWith,
         sharedUsers: newSharedUsers,
         isPublic: sharingNet.isPublic
       };
-      
+
       await updateNetDB(sharingNet.id, updates);
-      
+
       // Atualiza estado local
       setNets(prev => prev.map(n => n.id === sharingNet.id ? { ...n, ...updates } : n));
       setSharingNet({ ...sharingNet, ...updates });
@@ -198,12 +199,69 @@ export default function Dashboard() {
     }
   };
 
+  const handleExportNet = async (netId: string, title: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpenDropdownId(null);
+    try {
+      const data = await exportNet(netId);
+      if (!data) return;
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${title.replace(/\s+/g, '_').toLowerCase()}_net.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao exportar net", error);
+      alert("Falha ao exportar a Net.");
+    }
+  };
+
+  const handleImportNet = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const content = e.target?.result as string;
+        const data = JSON.parse(content) as NetExportData;
+
+        // Basic validation
+        if (!data.net || !Array.isArray(data.notes) || !Array.isArray(data.folders)) {
+          throw new Error("Formato de arquivo inválido");
+        }
+
+        setLoadingNets(true);
+        const importedNet = await importNet(user.uid, data, {
+          name: user.displayName || "Usuário",
+          username: userProfile?.username || "usuario",
+          photoURL: userProfile?.photoBase64 || user.photoURL || ""
+        });
+
+        setNets(prev => [importedNet, ...prev]);
+        setActiveTab("minhas");
+      } catch (error) {
+        console.error("Erro ao importar net:", error);
+        alert("Falha ao importar o arquivo. Verifique se o formato está correto.");
+      } finally {
+        setLoadingNets(false);
+        // Reset input
+        event.target.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden" onClick={() => setOpenDropdownId(null)}>
-      
+
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -214,7 +272,7 @@ export default function Dashboard() {
         "fixed inset-y-0 left-0 z-50 w-72 h-full bg-gray-50 dark:bg-[#121212] border-r border-black/5 dark:border-white/5 flex flex-col justify-between transition-transform duration-300 md:relative md:translate-x-0",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        
+
         <div className="flex flex-col overflow-y-auto">
           {/* Perfil do Usuário */}
           <Link href="/profile" className="p-6 flex items-center gap-4 mb-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group">
@@ -227,7 +285,7 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-col truncate">
               <span className="font-bold text-foreground text-lg leading-tight truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
-                {user.displayName || "Usuário"}
+                {userProfile?.displayName || user.displayName || "Usuário"}
               </span>
               <span className="text-foreground/50 text-xs truncate">
                 {userProfile?.username ? `@${userProfile.username}` : user.email}
@@ -308,15 +366,42 @@ export default function Dashboard() {
             <img src="/logo.svg" alt="NetBrain Logo" className="w-8 h-8 md:w-10 md:h-10 drop-shadow-md" />
             <h1 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight">NetBrain</h1>
           </div>
-          {activeTab === "minhas" && (
-            <button
-              onClick={handleCreateNewNet}
-              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20 text-sm md:text-base"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Nova Net</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 relative">
+            {activeTab === "minhas" && (
+              <div className="relative">
+                <button
+                  onClick={() => setIsNewNetDropdownOpen(!isNewNetDropdownOpen)}
+                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl transition-all font-medium shadow-lg shadow-violet-600/20 text-sm md:text-base"
+                >
+                  <Plus size={18} />
+                  <span className="hidden sm:inline">Nova Net</span>
+                </button>
+
+                {isNewNetDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setIsNewNetDropdownOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-[#1a1a1a] rounded-xl shadow-xl border border-black/10 dark:border-white/10 py-1 z-[70] overflow-hidden">
+                      <button
+                        onClick={() => { handleCreateNewNet(); setIsNewNetDropdownOpen(false); }}
+                        className="w-full text-left px-4 py-2 text-sm text-foreground/80 hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <Edit3 size={14} /> Criar do zero
+                      </button>
+                      <label className="w-full text-left px-4 py-2 text-sm text-foreground/80 hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-2 cursor-pointer">
+                        <Upload size={14} /> Importar JSON
+                        <input
+                          type="file"
+                          accept=".json"
+                          className="hidden"
+                          onChange={(e) => { handleImportNet(e); setIsNewNetDropdownOpen(false); }}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mb-10">
@@ -324,10 +409,10 @@ export default function Dashboard() {
             {activeTab === "minhas" ? "Minhas Nets" : activeTab === "compartilhadas" ? "Compartilhadas" : "Encontrar Nets"}
           </h2>
           <p className="text-foreground/50 text-sm md:text-base mt-2">
-            {activeTab === "minhas" 
-              ? "Gerencie seus mapas mentais e conexões." 
-              : activeTab === "compartilhadas" 
-                ? "Nets que outras pessoas compartilharam com você." 
+            {activeTab === "minhas"
+              ? "Gerencie seus mapas mentais e conexões."
+              : activeTab === "compartilhadas"
+                ? "Nets que outras pessoas compartilharam com você."
                 : "Explore mapas mentais públicos da comunidade."}
           </p>
         </div>
@@ -335,7 +420,7 @@ export default function Dashboard() {
         {activeTab === "encontrar" && (
           <div className="mb-8 relative max-w-xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30" size={20} />
-            <input 
+            <input
               type="text"
               placeholder="Pesquisar por @usuário ou título..."
               value={publicSearchQuery}
@@ -344,7 +429,7 @@ export default function Dashboard() {
             />
           </div>
         )}
-        
+
         {/* Grid de Cards (Nets) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activeTab === "minhas" && nets.map((net) => (
@@ -357,7 +442,7 @@ export default function Dashboard() {
                 <div className="text-xs text-foreground/50 font-medium">
                   {net.noteCount ?? 0} {net.noteCount === 1 ? 'Nota' : 'Notas'}
                 </div>
-                
+
                 <div className="relative">
                   <button
                     onClick={(e) => {
@@ -395,9 +480,9 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              
+
               {editingNetId === net.id ? (
-                <div 
+                <div
                   className="flex flex-col gap-3 h-full"
                   onClick={(e) => e.stopPropagation()} // Prevent card click when editing
                 >
@@ -450,7 +535,7 @@ export default function Dashboard() {
             <div className="col-span-full py-20 text-center bg-black/5 dark:bg-white/5 rounded-3xl border border-dashed border-black/10 dark:border-white/10">
               <Search className="mx-auto text-foreground/20 mb-4" size={48} />
               <p className="text-foreground/40 text-lg">Nenhuma Net encontrada para sua pesquisa.</p>
-              <button 
+              <button
                 onClick={() => setPublicSearchQuery("")}
                 className="mt-4 text-violet-500 hover:underline text-sm font-medium"
               >
@@ -459,9 +544,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          {(activeTab === "compartilhadas" 
-            ? sharedNets 
-            : activeTab === "encontrar" 
+          {(activeTab === "compartilhadas"
+            ? sharedNets
+            : activeTab === "encontrar"
               ? filteredPublicNets
               : []
           ).map((net) => (
@@ -514,7 +599,7 @@ export default function Dashboard() {
               <button onClick={() => setSharingNet(null)} className="absolute top-4 right-4 p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-foreground/50 hover:text-foreground">
                 <X size={20} />
               </button>
-              
+
               <h2 className="text-xl font-bold mb-2">Compartilhar "{sharingNet.title}"</h2>
               <p className="text-sm text-foreground/60 mb-6">Escolha quem pode visualizar e interagir com este mapa mental.</p>
 
@@ -529,12 +614,28 @@ export default function Dashboard() {
                 </label>
               </div>
 
+              {/* Export Option inside Share Modal */}
+              <div className="mb-6 p-4 rounded-xl border border-dashed border-black/10 dark:border-white/10 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-sm">Exportar Json</h4>
+                    <p className="text-xs text-foreground/60">Baixe uma cópia desta Net em formato JSON.</p>
+                  </div>
+                  <button
+                    onClick={(e) => handleExportNet(sharingNet.id, sharingNet.title, e)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-xs font-bold transition-all"
+                  >
+                    <Download size={14} /> Exportar
+                  </button>
+                </div>
+              </div>
+
               <form onSubmit={handleSaveShare} className="flex flex-col gap-3">
                 <label className="text-sm font-semibold">Compartilhar com usuário</label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="@nomedeusuario" 
+                  <input
+                    type="text"
+                    placeholder="@nomedeusuario"
                     value={shareUsernameInput}
                     onChange={(e) => setShareUsernameInput(e.target.value)}
                     className="flex-1 bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-violet-500 min-w-0"
@@ -560,9 +661,9 @@ export default function Dashboard() {
                   <div className="flex flex-col gap-2">
                     {sharingNet.sharedUsers.map(u => {
                       const roleConfig = {
-                        admin:  { label: "Administrador", icon: <Shield size={11} />, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-                        editor: { label: "Editor",        icon: <Edit3 size={11} />,  cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-                        viewer: { label: "Visualizador",  icon: <Eye size={11} />,    cls: "bg-green-500/10 text-green-600 dark:text-green-400" },
+                        admin: { label: "Administrador", icon: <Shield size={11} />, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+                        editor: { label: "Editor", icon: <Edit3 size={11} />, cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+                        viewer: { label: "Visualizador", icon: <Eye size={11} />, cls: "bg-green-500/10 text-green-600 dark:text-green-400" },
                       }[u.role ?? "viewer"];
                       return (
                         <div key={u.uid} className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-xl px-3 py-2">

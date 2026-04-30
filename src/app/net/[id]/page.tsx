@@ -283,6 +283,7 @@ export default function Home() {
         {showGraph ? (
           <Graph 
             notes={notes} 
+            folders={folders}
             onNodeClick={handleNodeClick} 
             settings={settings} 
             onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

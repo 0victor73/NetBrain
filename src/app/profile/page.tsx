@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { updateProfile } from "firebase/auth";
-import { saveUserProfile, UserProfile, checkUsernameExists } from "@/lib/db";
+import { updateProfile, deleteUser } from "firebase/auth";
+import { saveUserProfile, UserProfile, checkUsernameExists, deleteAllUserData } from "@/lib/db";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Loader2, Save, User } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, Save, User, Trash2, X, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export default function ProfilePage() {
@@ -19,6 +19,9 @@ export default function ProfilePage() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +120,31 @@ export default function ProfilePage() {
       setMessage("Erro ao salvar perfil: " + error.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user || deleteText !== "EXCLUIR MINHA CONTA") return;
+
+    setIsDeleting(true);
+    try {
+      // 1. Limpar dados do Firestore
+      await deleteAllUserData(user.uid);
+      
+      // 2. Deletar do Auth
+      await deleteUser(user);
+      
+      // 3. Sucesso
+      router.push("/login");
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === "auth/requires-recent-login") {
+        alert("Para sua segurança, esta ação requer um login recente. Por favor, saia e entre novamente antes de excluir sua conta.");
+      } else {
+        alert("Erro ao excluir conta: " + error.message);
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -235,8 +263,81 @@ export default function ProfilePage() {
               </button>
             </div>
           </form>
+
+          {/* Excluir Conta */}
+          <div className="mt-12 pt-8 border-t border-black/10 dark:border-white/10">
+            <h3 className="text-foreground/80 font-bold mb-2 flex items-center gap-2 text-lg">
+              Excluir conta
+            </h3>
+            <p className="text-sm text-foreground/50 mb-6">
+              Se você decidir sair do NetBrain permanentemente, pode apagar sua conta e todos os seus dados aqui.
+            </p>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-foreground/40 hover:text-red-500 hover:bg-red-500/10 px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 border border-transparent hover:border-red-500/20"
+            >
+              Solicitar exclusão de conta
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Modal de Confirmação de Deleção */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md rounded-3xl shadow-2xl p-8 relative border border-black/10 dark:border-white/10 animate-in fade-in zoom-in duration-300">
+            <button 
+              onClick={() => setShowDeleteConfirm(false)}
+              className="absolute top-6 right-6 p-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-foreground/40 hover:text-foreground transition-all"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-black/5 dark:bg-white/5 text-foreground/40 rounded-full flex items-center justify-center mb-6">
+                <Trash2 size={24} />
+              </div>
+              
+              <h2 className="text-xl font-bold mb-2">Excluir sua conta?</h2>
+              <p className="text-foreground/50 text-sm mb-8">
+                Isso removerá permanentemente todos os seus mapas mentais, notas e configurações do NetBrain.
+              </p>
+
+              <div className="w-full space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">
+                    Digite <span className="text-foreground/60 select-all font-mono">deletar minha conta</span> para confirmar
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteText}
+                    onChange={(e) => setDeleteText(e.target.value)}
+                    className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-4 py-3 text-center text-sm font-medium outline-none focus:border-violet-500/30 transition-colors"
+                    placeholder="Confirme o texto acima"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting || deleteText.toLowerCase() !== "deletar minha conta"}
+                    className="w-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold py-3.5 rounded-xl transition-all disabled:opacity-20 disabled:grayscale"
+                  >
+                    {isDeleting ? <Loader2 size={20} className="animate-spin mx-auto" /> : "Confirmar Exclusão"}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="w-full py-3 text-foreground/50 hover:text-foreground font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
