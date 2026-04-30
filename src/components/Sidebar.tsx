@@ -38,6 +38,9 @@ interface SidebarProps {
   showGraph: boolean;
   setShowGraph: (show: boolean) => void;
   onOpenSettings: () => void;
+  canWrite?: boolean;
+  canAdmin?: boolean;
+  currentUserId?: string;
 }
 
 /** Inline rename input */
@@ -342,6 +345,9 @@ export default function Sidebar({
   showGraph,
   setShowGraph,
   onOpenSettings,
+  canWrite = true,
+  canAdmin = true,
+  currentUserId,
 }: SidebarProps) {
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -388,20 +394,24 @@ export default function Sidebar({
           >
             <Network size={16} />
           </button>
-          <button
-            onClick={() => onCreateFolder(null)}
-            className="p-1.5 rounded-md text-foreground/50 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            title="Nova Pasta"
-          >
-            <FolderPlus size={16} />
-          </button>
-          <button
-            onClick={() => onCreateNote(null)}
-            className="p-1.5 rounded-md text-foreground/50 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            title="Nova Nota"
-          >
-            <Plus size={16} />
-          </button>
+          {canWrite && (
+            <>
+              <button
+                onClick={() => onCreateFolder(null)}
+                className="p-1.5 rounded-md text-foreground/50 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                title="Nova Pasta"
+              >
+                <FolderPlus size={16} />
+              </button>
+              <button
+                onClick={() => onCreateNote(null)}
+                className="p-1.5 rounded-md text-foreground/50 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                title="Nova Nota"
+              >
+                <Plus size={16} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
