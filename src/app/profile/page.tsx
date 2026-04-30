@@ -93,11 +93,10 @@ export default function ProfilePage() {
       // Salva no Firestore
       await saveUserProfile(user.uid, profileUpdates);
 
-      // Atualiza o perfil no Firebase Auth (Display Name e Foto se tiver nova)
+      // Atualiza o perfil no Firebase Auth (Apenas Display Name)
+      // Não tentamos salvar a imagem em Base64 no Auth (photoURL) pois excede o limite de tamanho.
+      // O Firestore já armazenará a imagem e o sistema dará preferência a ela.
       const authUpdates: any = { displayName: displayName };
-      if (photoBase64State) {
-        authUpdates.photoURL = photoBase64State;
-      }
       
       await updateProfile(user, authUpdates);
 
