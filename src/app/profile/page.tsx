@@ -124,7 +124,7 @@ export default function ProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!user || deleteText !== "EXCLUIR MINHA CONTA") return;
+    if (!user || deleteText.toLowerCase() !== "deletar minha conta") return;
 
     setIsDeleting(true);
     try {

@@ -69,12 +69,17 @@ export default function OnboardingPage() {
 
     setLoading(true);
     try {
-      await saveUserProfile(user.uid, {
+      const profileData: any = {
         displayName: displayName.trim(),
         username: username.trim(),
-        photoBase64: photoBase64 || undefined,
         photoURL: photoBase64 ? "" : (user.photoURL || "")
-      });
+      };
+
+      if (photoBase64) {
+        profileData.photoBase64 = photoBase64;
+      }
+
+      await saveUserProfile(user.uid, profileData);
       await refreshProfile();
       router.push("/");
     } catch (err: any) {
